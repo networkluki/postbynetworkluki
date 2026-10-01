@@ -48,6 +48,13 @@ class BuildTests(ContentDirectoryTestCase):
         self.assertIn("First paragraph.", self.read("blog/newest-post/index.html"))
         self.assertIn("There is nothing here.", self.read("404.html"))
         self.assertIn(".nav-card", self.read("static/style.css"))
+        # The pages must link to the fingerprinted copy, and it must exist.
+        import app
+
+        name = app.stylesheet_name()
+        self.assertIn(f"static/{name}", written)
+        self.assertIn(".nav-card", self.read(f"static/{name}"))
+        self.assertIn(f'href="/static/{name}"', self.read("index.html"))
         self.assertEqual(self.read("CNAME").strip(), "blog.networkluki.com")
 
     def test_retired_paths_become_redirect_pages(self):

@@ -12,6 +12,7 @@ Posts live in ``src/posts`` as text files; see ``content.py``.
 
 from __future__ import annotations
 
+import hashlib
 import os
 from html import escape
 from pathlib import Path
@@ -36,6 +37,26 @@ SECURITY_HEADERS = [
 SECTION_ALIASES = {"/ideer": "/ideas", "/blogg": "/blog"}
 
 
+def stylesheet_path() -> Path:
+    return BASE_DIR / "static" / "style.css"
+
+
+def stylesheet_name() -> str:
+    """The stylesheet's file name, including a hash of its contents.
+
+    GitHub Pages serves static files with a four hour Cache-Control, so a
+    stylesheet at a fixed URL keeps reaching returning visitors long after it
+    changed. Putting the content hash in the name means a changed stylesheet is
+    a new URL that no cache can have, while an unchanged one stays cacheable.
+    """
+    digest = hashlib.sha256(stylesheet_path().read_bytes()).hexdigest()[:12]
+    return f"style.{digest}.css"
+
+
+def stylesheet_href() -> str:
+    return f"/static/{stylesheet_name()}"
+
+
 def page(
     title: str,
     content: str,
@@ -46,6 +67,7 @@ def page(
     html = (
         template.replace("{{ title }}", escape(title))
         .replace("{{ description }}", escape(description, quote=True))
+        .replace("{{ stylesheet }}", stylesheet_href())
         .replace("{{ content }}", content)
     )
     return html.encode("utf-8")
@@ -177,8 +199,8 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
             "405 Method Not Allowed", [("Allow", "GET, HEAD"), *SECURITY_HEADERS]
         )
         return [b""]
-    if path == "/static/style.css":
-        body = (BASE_DIR / "static" / "style.css").read_bytes()
+    if path in ("/static/style.css", stylesheet_href()):
+        body = stylesheet_path().read_bytes()
         start_response(
             "200 OK",
             [

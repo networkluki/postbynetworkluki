@@ -27,7 +27,15 @@ import sys
 from html import escape
 from pathlib import Path
 
-from app import article, changelog, home, ideas, listing, not_found
+from app import (
+    article,
+    changelog,
+    home,
+    ideas,
+    listing,
+    not_found,
+    stylesheet_name,
+)
 from content import Post, PostError, all_posts
 
 ROOT = Path(__file__).resolve().parent
@@ -123,7 +131,11 @@ def build(output: Path = OUTPUT, *, force: bool = False) -> list[str]:
     stylesheet = ROOT / "static" / "style.css"
     if not stylesheet.is_file():
         raise BuildError(f"missing stylesheet: {stylesheet}")
-    written.append(write(output, "static/style.css", stylesheet.read_bytes()))
+    styles = stylesheet.read_bytes()
+    # The fingerprinted name is what the pages link to.
+    written.append(write(output, f"static/{stylesheet_name()}", styles))
+    # The plain name stays for HTML that a visitor already has cached.
+    written.append(write(output, "static/style.css", styles))
 
     cname = ROOT / "CNAME"
     if cname.is_file():
