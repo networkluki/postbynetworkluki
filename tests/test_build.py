@@ -73,6 +73,32 @@ class BuildTests(ContentDirectoryTestCase):
                 self.assertIn(f'rel="canonical" href="{target}"', page)
                 self.assertIn('content="noindex"', page)
 
+    def test_redirect_pages_are_dark_without_the_stylesheet(self):
+        """They are visible until the refresh fires, so they must not flash white."""
+        build.build(self.output)
+        for relative in ("ideer/index.html", "blog/aldsta-slugen/index.html"):
+            with self.subTest(relative=relative):
+                page = self.read(relative)
+                self.assertNotIn('rel="stylesheet"', page)
+                self.assertIn("background:#1a1917", page)
+                self.assertIn("color:#f2efe9", page)
+                self.assertIn("color-scheme:dark", page)
+
+    def test_every_generated_html_page_renders_dark(self):
+        """No page may end up with a default white background."""
+        build.build(self.output)
+        pages = sorted(self.output.rglob("*.html"))
+        self.assertGreater(len(pages), 5)
+        for path in pages:
+            with self.subTest(page=path.relative_to(self.output).as_posix()):
+                text = path.read_text(encoding="utf-8")
+                styled = 'rel="stylesheet"' in text and "/static/style." in text
+                inline_dark = "background:#1a1917" in text
+                self.assertTrue(
+                    styled or inline_dark,
+                    "page has neither the stylesheet nor an inline dark background",
+                )
+
     def test_rebuilding_removes_stale_pages(self):
         build.build(self.output)
         stale = self.output / "blog" / "deleted-post" / "index.html"

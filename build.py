@@ -52,15 +52,27 @@ class BuildError(Exception):
 
 
 def redirect_page(target: str) -> bytes:
-    """A static redirect: no server rules are available on a static host."""
+    """A static redirect: no server rules are available on a static host.
+
+    The colours are inline rather than loaded from the stylesheet. These pages are
+    visible for as long as the browser takes to follow the refresh, and an external
+    stylesheet would let them flash white first, or stay white on a slow connection.
+    """
     safe = escape(target, quote=True)
     return (
         "<!doctype html>\n"
         '<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         '<meta name="robots" content="noindex">\n'
+        '<meta name="theme-color" content="#1a1917">\n'
         f'<link rel="canonical" href="{safe}">\n'
         f'<meta http-equiv="refresh" content="0; url={safe}">\n'
-        "<title>Moved</title>\n</head>\n"
+        "<title>Moved</title>\n"
+        "<style>:root{color-scheme:dark}"
+        "body{margin:0;min-height:100vh;display:flex;align-items:center;"
+        "justify-content:center;color:#f2efe9;background:#1a1917;"
+        "font:400 1rem/1.6 system-ui,sans-serif}"
+        "a{color:#e08a6f}</style>\n</head>\n"
         f'<body><p>This page moved to <a href="{safe}">{safe}</a>.</p></body>\n'
         "</html>\n"
     ).encode("utf-8")
