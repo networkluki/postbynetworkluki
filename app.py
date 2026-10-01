@@ -10,17 +10,25 @@ import os
 import re
 import sqlite3
 import unicodedata
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import date
 from html import escape
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 from urllib.parse import parse_qs, unquote
 from wsgiref.simple_server import make_server
 
 
 BASE_DIR = Path(__file__).parent
 MAX_FORM_SIZE = 64 * 1024
+POST_FIELD_LIMITS = {
+    "title": 120,
+    "category": 50,
+    "excerpt": 300,
+    "content": 20000,
+    "read_time": 20,
+}
 SECURITY_HEADERS = [
     (
         "Content-Security-Policy",
@@ -113,7 +121,7 @@ def connect_database() -> sqlite3.Connection:
 
 def all_posts() -> tuple[Post, ...]:
     """Combine posts created on the site with the bundled starter posts."""
-    with connect_database() as connection:
+    with closing(connect_database()) as connection:
         rows = connection.execute(
             "SELECT slug, category, title, excerpt, published, read_time, content FROM posts"
         ).fetchall()
@@ -276,6 +284,83 @@ def article(post: Post) -> bytes:
     return page(f"{post.title} · Post", content, description=post.excerpt)
 
 
+class PostError(Exception):
+    """A post could not be stored. Carries the matching HTTP status for the web UI."""
+
+    def __init__(self, message: str, status: str = "400 Bad Request") -> None:
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def validate_post_fields(values: Mapping[str, str]) -> dict[str, str]:
+    """Return the trimmed, length-checked fields or raise PostError."""
+    cleaned: dict[str, str] = {}
+    for field, limit in POST_FIELD_LIMITS.items():
+        value = (values.get(field) or "").strip()
+        if not value or len(value) > limit:
+            raise PostError("Make sure every field is completed.")
+        cleaned[field] = value
+    return cleaned
+
+
+def store_post(
+    values: Mapping[str, str],
+    *,
+    published: date | None = None,
+    slug: str | None = None,
+) -> Post:
+    """Validate and insert a post, returning the stored post.
+
+    Raises PostError for invalid input, an unusable title or a duplicate slug.
+    This is the single write path: the admin form and manage.py both use it.
+    """
+    cleaned = validate_post_fields(values)
+    slug = slugify(slug or cleaned["title"])
+    if not slug:
+        raise PostError("The title must contain letters or numbers.")
+    if any(post.slug == slug for post in POSTS):
+        raise PostError("A post with that title already exists.", "409 Conflict")
+    published = published or date.today()
+    try:
+        with closing(connect_database()) as connection, connection:
+            connection.execute(
+                "INSERT INTO posts VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    slug,
+                    cleaned["category"],
+                    cleaned["title"],
+                    cleaned["excerpt"],
+                    published.isoformat(),
+                    cleaned["read_time"],
+                    cleaned["content"],
+                ),
+            )
+    except sqlite3.IntegrityError:
+        raise PostError(
+            "A post with that title already exists.", "409 Conflict"
+        ) from None
+    return Post(
+        slug,
+        cleaned["category"],
+        cleaned["title"],
+        cleaned["excerpt"],
+        published,
+        cleaned["read_time"],
+        tuple(cleaned["content"].split("\n\n")),
+    )
+
+
+def delete_post(slug: str) -> bool:
+    """Remove a stored post. Returns False when no stored post has that slug.
+
+    Bundled starter posts live in POSTS and cannot be deleted from the database.
+    """
+    with closing(connect_database()) as connection, connection:
+        cursor = connection.execute("DELETE FROM posts WHERE slug = ?", (slug,))
+        return cursor.rowcount > 0
+
+
 def admin_form(error: str = "") -> bytes:
     alert = f'<p class="form-error" role="alert">{escape(error)}</p>' if error else ""
     content = f'''<section class="admin"><p class="kicker">ADMIN</p><h1>New blog post</h1>
@@ -312,50 +397,17 @@ def read_form(environ: dict) -> dict[str, str] | None:
 
 def create_post(environ: dict) -> tuple[bytes, str, list[tuple[str, str]]]:
     form = read_form(environ)
-    fields = ("title", "category", "excerpt", "content", "read_time")
-    limits = {
-        "title": 120,
-        "category": 50,
-        "excerpt": 300,
-        "content": 20000,
-        "read_time": 20,
-    }
     if not form or not hmac.compare_digest(form.get("csrf_token", ""), csrf_token()):
         return (
             admin_form("The form has expired. Please try again."),
             "403 Forbidden",
             [],
         )
-    if not form or any(
-        not form.get(field) or len(form[field]) > limits[field] for field in fields
-    ):
-        return admin_form("Make sure every field is completed."), "400 Bad Request", []
-    slug = slugify(form["title"])
-    if not slug:
-        return (
-            admin_form("The title must contain letters or numbers."),
-            "400 Bad Request",
-            [],
-        )
-    if any(post.slug == slug for post in POSTS):
-        return admin_form("A post with that title already exists."), "409 Conflict", []
     try:
-        with connect_database() as connection:
-            connection.execute(
-                "INSERT INTO posts VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    slug,
-                    form["category"],
-                    form["title"],
-                    form["excerpt"],
-                    date.today().isoformat(),
-                    form["read_time"],
-                    form["content"],
-                ),
-            )
-    except sqlite3.IntegrityError:
-        return admin_form("A post with that title already exists."), "409 Conflict", []
-    return b"", "303 See Other", [("Location", f"/blog/{slug}")]
+        post = store_post(form)
+    except PostError as error:
+        return admin_form(error.message), error.status, []
+    return b"", "303 See Other", [("Location", f"/blog/{post.slug}")]
 
 
 def not_found() -> bytes:
