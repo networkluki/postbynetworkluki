@@ -1,5 +1,7 @@
 import io
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from app import application
 from helpers import ContentDirectoryTestCase, write_post_file
@@ -61,11 +63,39 @@ class BlogTests(ContentDirectoryTestCase):
         self.assertIn("The newest post", body)
         self.assertIn("The older post", body)
 
-    def test_stylesheet_is_served(self):
-        response = request("/static/style.css")
-        self.assertEqual(response["status"], "200 OK")
-        self.assertEqual(response["headers"]["Content-Type"], "text/css; charset=utf-8")
-        self.assertIn(b".nav-card", response["body"])
+    def test_stylesheet_is_served_under_both_names(self):
+        import app
+
+        for path in ("/static/style.css", app.stylesheet_href()):
+            with self.subTest(path=path):
+                response = request(path)
+                self.assertEqual(response["status"], "200 OK")
+                self.assertEqual(
+                    response["headers"]["Content-Type"], "text/css; charset=utf-8"
+                )
+                self.assertIn(b".nav-card", response["body"])
+
+    def test_pages_link_to_the_fingerprinted_stylesheet(self):
+        import app
+
+        href = app.stylesheet_href()
+        self.assertRegex(href, r"^/static/style\.[0-9a-f]{12}\.css$")
+        self.assertIn(f'href="{href}"', request("/")["body"].decode())
+
+    def test_the_fingerprint_follows_the_stylesheet_contents(self):
+        """A changed stylesheet must produce a new URL, or caches keep the old one."""
+        import shutil
+
+        import app
+
+        before = app.stylesheet_href()
+        fake_root = Path(self.temp_directory.name) / "root"
+        (fake_root / "static").mkdir(parents=True)
+        shutil.copy(app.BASE_DIR / "static" / "style.css", fake_root / "static")
+        with (fake_root / "static" / "style.css").open("a", encoding="utf-8") as handle:
+            handle.write("\n/* a change */\n")
+        with patch.object(app, "BASE_DIR", fake_root):
+            self.assertNotEqual(app.stylesheet_href(), before)
 
     def test_responses_include_security_headers(self):
         headers = request("/")["headers"]
