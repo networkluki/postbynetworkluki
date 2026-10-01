@@ -2,24 +2,35 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date
-from html import escape
 import base64
+import binascii
 import hashlib
 import hmac
 import os
-from pathlib import Path
 import re
 import sqlite3
+import unicodedata
+from dataclasses import dataclass
+from datetime import date
+from html import escape
+from pathlib import Path
 from typing import Iterable
 from urllib.parse import parse_qs, unquote
-import unicodedata
 from wsgiref.simple_server import make_server
 
 
 BASE_DIR = Path(__file__).parent
 MAX_FORM_SIZE = 64 * 1024
+SECURITY_HEADERS = [
+    (
+        "Content-Security-Policy",
+        "default-src 'self'; style-src 'self' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'self'; "
+        "frame-ancestors 'none'",
+    ),
+    ("Referrer-Policy", "strict-origin-when-cross-origin"),
+    ("X-Content-Type-Options", "nosniff"),
+]
 
 
 @dataclass(frozen=True)
@@ -107,14 +118,24 @@ def all_posts() -> tuple[Post, ...]:
             "SELECT slug, category, title, excerpt, published, read_time, content FROM posts"
         ).fetchall()
     created = tuple(
-        Post(row[0], row[1], row[2], row[3], date.fromisoformat(row[4]), row[5], tuple(row[6].split("\n\n")))
+        Post(
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            date.fromisoformat(row[4]),
+            row[5],
+            tuple(row[6].split("\n\n")),
+        )
         for row in rows
     )
     return tuple(sorted(created + POSTS, key=lambda post: post.published, reverse=True))
 
 
 def slugify(value: str) -> str:
-    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    ascii_value = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    )
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_value.lower()).strip("-")
     return slug[:80]
 
@@ -125,8 +146,12 @@ def is_admin(environ: dict) -> bool:
     if not password or not authorization.startswith("Basic "):
         return False
     try:
-        supplied = base64.b64decode(authorization[6:], validate=True).decode("utf-8").partition(":")[2]
-    except (ValueError, UnicodeDecodeError):
+        supplied = (
+            base64.b64decode(authorization[6:], validate=True)
+            .decode("utf-8")
+            .partition(":")[2]
+        )
+    except (binascii.Error, UnicodeDecodeError, ValueError):
         return False
     return hmac.compare_digest(supplied, password)
 
@@ -136,11 +161,18 @@ def csrf_token() -> str:
     return hmac.new(password.encode(), b"post-admin-form", hashlib.sha256).hexdigest()
 
 
-def page(title: str, content: str, *, description: str = "Ideas, articles, and updates from networkluki.") -> bytes:
+def page(
+    title: str,
+    content: str,
+    *,
+    description: str = "Ideas, articles, and updates from networkluki.",
+) -> bytes:
     template = (BASE_DIR / "templates" / "base.html").read_text(encoding="utf-8")
-    html = template.replace("{{ title }}", escape(title)).replace(
-        "{{ description }}", escape(description, quote=True)
-    ).replace("{{ content }}", content)
+    html = (
+        template.replace("{{ title }}", escape(title))
+        .replace("{{ description }}", escape(description, quote=True))
+        .replace("{{ content }}", content)
+    )
     return html.encode("utf-8")
 
 
@@ -150,7 +182,7 @@ def post_card(post: Post) -> str:
         <p class="eyebrow">{escape(post.category)}</p>
         <h2><a href="/blog/{escape(post.slug)}">{escape(post.title)}</a></h2>
         <p>{escape(post.excerpt)}</p>
-        <div class="post-meta"><time datetime="{post.published.isoformat()}">{post.published.strftime('%Y-%m-%d')}</time><span>{escape(post.read_time)} read</span></div>
+        <div class="post-meta"><time datetime="{post.published.isoformat()}">{post.published.strftime("%Y-%m-%d")}</time><span>{escape(post.read_time)} read</span></div>
       </article>"""
 
 
@@ -168,7 +200,7 @@ def home() -> bytes:
   <a href="/changelog" class="nav-card changelog"><div class="icon" aria-hidden="true">&#128203;</div><div class="body"><h3>Changelog</h3><p>Changes and updates</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
 </div>
 <section class="featured">
-  <div><p class="eyebrow">Latest post · {latest.published.strftime('%Y-%m-%d')}</p><h2>{escape(latest.title)}</h2><p>{escape(latest.excerpt)}</p></div>
+  <div><p class="eyebrow">Latest post · {latest.published.strftime("%Y-%m-%d")}</p><h2>{escape(latest.title)}</h2><p>{escape(latest.excerpt)}</p></div>
   <a class="text-link" href="/blog/{latest.slug}">Read the post <span aria-hidden="true">↗</span></a>
 </section>"""
     return page("Post by networkluki", content)
@@ -176,27 +208,66 @@ def home() -> bytes:
 
 def listing() -> bytes:
     cards = "".join(post_card(post) for post in all_posts())
-    return page("Blog · Post", f'<header class="page-heading"><p class="kicker">BLOG</p><h1>Posts &amp; articles</h1><p>Thoughts, methods, and things we learn along the way.</p></header><section class="post-grid">{cards}</section>')
+    return page(
+        "Blog · Post",
+        f'<header class="page-heading"><p class="kicker">BLOG</p><h1>Posts &amp; articles</h1><p>Thoughts, methods, and things we learn along the way.</p></header><section class="post-grid">{cards}</section>',
+    )
 
 
 def ideas() -> bytes:
     items = (
-        ("01", "Make room for boring ideas", "The obvious is often a better starting point than the original. Write it down anyway."),
-        ("02", "Change perspective for ten minutes", "Describe the problem as a new visitor, an expert, and someone with very little time."),
-        ("03", "End with the next step", "A note becomes more useful when it tells you what you can actually do now."),
+        (
+            "01",
+            "Make room for boring ideas",
+            "The obvious is often a better starting point than the original. Write it down anyway.",
+        ),
+        (
+            "02",
+            "Change perspective for ten minutes",
+            "Describe the problem as a new visitor, an expert, and someone with very little time.",
+        ),
+        (
+            "03",
+            "End with the next step",
+            "A note becomes more useful when it tells you what you can actually do now.",
+        ),
     )
-    rows = "".join(f'<article class="idea-row"><span>{n}</span><div><h2>{escape(t)}</h2><p>{escape(p)}</p></div></article>' for n, t, p in items)
-    return page("Ideas & tips · Post", f'<header class="page-heading"><p class="kicker">IDEAS &amp; TIPS</p><h1>Small things to try</h1><p>Short prompts for better digital work.</p></header><section class="idea-list">{rows}</section>')
+    rows = "".join(
+        f'<article class="idea-row"><span>{n}</span><div><h2>{escape(t)}</h2><p>{escape(p)}</p></div></article>'
+        for n, t, p in items
+    )
+    return page(
+        "Ideas & tips · Post",
+        f'<header class="page-heading"><p class="kicker">IDEAS &amp; TIPS</p><h1>Small things to try</h1><p>Short prompts for better digital work.</p></header><section class="idea-list">{rows}</section>',
+    )
 
 
 def changelog() -> bytes:
     entries = (
-        ("2026-10-01", "Post gets a home of its own", "We launched a new home page, blog, idea collection, and changelog."),
-        ("2026-09-24", "The first article", "We published our first longer piece about building less and learning faster."),
-        ("2026-08-29", "The work begins", "The first sketches, words, and technical decisions fell into place."),
+        (
+            "2026-10-01",
+            "Post gets a home of its own",
+            "We launched a new home page, blog, idea collection, and changelog.",
+        ),
+        (
+            "2026-09-24",
+            "The first article",
+            "We published our first longer piece about building less and learning faster.",
+        ),
+        (
+            "2026-08-29",
+            "The work begins",
+            "The first sketches, words, and technical decisions fell into place.",
+        ),
     )
-    rows = "".join(f'<article class="change-row"><time datetime="{d}">{d}</time><div><h2>{escape(t)}</h2><p>{escape(p)}</p></div></article>' for d, t, p in entries)
-    return page("Changelog · Post", f'<header class="page-heading"><p class="kicker">CHANGELOG</p><h1>What is new?</h1><p>A straightforward record of how this place evolves.</p></header><section class="change-list">{rows}</section>')
+    rows = "".join(
+        f'<article class="change-row"><time datetime="{d}">{d}</time><div><h2>{escape(t)}</h2><p>{escape(p)}</p></div></article>'
+        for d, t, p in entries
+    )
+    return page(
+        "Changelog · Post",
+        f'<header class="page-heading"><p class="kicker">CHANGELOG</p><h1>What is new?</h1><p>A straightforward record of how this place evolves.</p></header><section class="change-list">{rows}</section>',
+    )
 
 
 def article(post: Post) -> bytes:
@@ -222,6 +293,9 @@ def admin_form(error: str = "") -> bytes:
 
 
 def read_form(environ: dict) -> dict[str, str] | None:
+    content_type = environ.get("CONTENT_TYPE", "").partition(";")[0].strip().lower()
+    if content_type != "application/x-www-form-urlencoded":
+        return None
     try:
         length = int(environ.get("CONTENT_LENGTH") or 0)
     except ValueError:
@@ -239,19 +313,45 @@ def read_form(environ: dict) -> dict[str, str] | None:
 def create_post(environ: dict) -> tuple[bytes, str, list[tuple[str, str]]]:
     form = read_form(environ)
     fields = ("title", "category", "excerpt", "content", "read_time")
-    limits = {"title": 120, "category": 50, "excerpt": 300, "content": 20000, "read_time": 20}
+    limits = {
+        "title": 120,
+        "category": 50,
+        "excerpt": 300,
+        "content": 20000,
+        "read_time": 20,
+    }
     if not form or not hmac.compare_digest(form.get("csrf_token", ""), csrf_token()):
-        return admin_form("The form has expired. Please try again."), "403 Forbidden", []
-    if not form or any(not form.get(field) or len(form[field]) > limits[field] for field in fields):
+        return (
+            admin_form("The form has expired. Please try again."),
+            "403 Forbidden",
+            [],
+        )
+    if not form or any(
+        not form.get(field) or len(form[field]) > limits[field] for field in fields
+    ):
         return admin_form("Make sure every field is completed."), "400 Bad Request", []
     slug = slugify(form["title"])
     if not slug:
-        return admin_form("The title must contain letters or numbers."), "400 Bad Request", []
+        return (
+            admin_form("The title must contain letters or numbers."),
+            "400 Bad Request",
+            [],
+        )
+    if any(post.slug == slug for post in POSTS):
+        return admin_form("A post with that title already exists."), "409 Conflict", []
     try:
         with connect_database() as connection:
             connection.execute(
                 "INSERT INTO posts VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (slug, form["category"], form["title"], form["excerpt"], date.today().isoformat(), form["read_time"], form["content"]),
+                (
+                    slug,
+                    form["category"],
+                    form["title"],
+                    form["excerpt"],
+                    date.today().isoformat(),
+                    form["read_time"],
+                    form["content"],
+                ),
             )
     except sqlite3.IntegrityError:
         return admin_form("A post with that title already exists."), "409 Conflict", []
@@ -259,7 +359,10 @@ def create_post(environ: dict) -> tuple[bytes, str, list[tuple[str, str]]]:
 
 
 def not_found() -> bytes:
-    return page("Page not found · Post", '<section class="empty"><p class="kicker">404</p><h1>There is nothing here.</h1><p>The page may have moved or may never have existed.</p><a class="button" href="/">Back to the home page</a></section>')
+    return page(
+        "Page not found · Post",
+        '<section class="empty"><p class="kicker">404</p><h1>There is nothing here.</h1><p>The page may have moved or may never have existed.</p><a class="button" href="/">Back to the home page</a></section>',
+    )
 
 
 def application(environ: dict, start_response) -> Iterable[bytes]:
@@ -267,26 +370,56 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
     path = unquote(environ.get("PATH_INFO", "/")).rstrip("/") or "/"
     method = environ.get("REQUEST_METHOD", "GET").upper()
     if path == "/static/style.css":
+        if method not in ("GET", "HEAD"):
+            start_response(
+                "405 Method Not Allowed", [("Allow", "GET, HEAD"), *SECURITY_HEADERS]
+            )
+            return [b""]
         body = (BASE_DIR / "static" / "style.css").read_bytes()
         start_response(
             "200 OK",
-            [("Content-Type", "text/css; charset=utf-8"), ("Content-Length", str(len(body)))],
+            [
+                ("Content-Type", "text/css; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+                *SECURITY_HEADERS,
+            ],
         )
-        return [body]
+        return [b"" if method == "HEAD" else body]
     if path in ("/admin/new", "/admin/nytt"):
         if not is_admin(environ):
-            body = page("Sign-in required · Post", '<section class="empty"><p class="kicker">ADMIN</p><h1>Sign-in required.</h1><p>Use the blog administrator password.</p></section>')
-            headers = [("WWW-Authenticate", 'Basic realm="Post admin", charset="UTF-8"')]
+            body = page(
+                "Sign-in required · Post",
+                '<section class="empty"><p class="kicker">ADMIN</p><h1>Sign-in required.</h1><p>Use the blog administrator password.</p></section>',
+            )
+            headers = [
+                ("WWW-Authenticate", 'Basic realm="Post admin", charset="UTF-8"')
+            ]
             status = "401 Unauthorized"
         elif method == "GET":
             body, status, headers = admin_form(), "200 OK", []
         elif method == "POST":
             body, status, headers = create_post(environ)
         else:
-            body, status, headers = b"", "405 Method Not Allowed", [("Allow", "GET, POST")]
-        headers.extend([("Content-Type", "text/html; charset=utf-8"), ("Content-Length", str(len(body)))])
+            body, status, headers = (
+                b"",
+                "405 Method Not Allowed",
+                [("Allow", "GET, POST")],
+            )
+        headers.extend(
+            [
+                ("Content-Type", "text/html; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+                ("Cache-Control", "no-store"),
+                *SECURITY_HEADERS,
+            ]
+        )
         start_response(status, headers)
         return [body]
+    if method not in ("GET", "HEAD"):
+        start_response(
+            "405 Method Not Allowed", [("Allow", "GET, HEAD"), *SECURITY_HEADERS]
+        )
+        return [b""]
     routes = {
         "/": home,
         "/ideas": ideas,
@@ -308,8 +441,15 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
             status, body = "404 Not Found", not_found()
     else:
         status, body = "404 Not Found", not_found()
-    start_response(status, [("Content-Type", "text/html; charset=utf-8"), ("Content-Length", str(len(body)))])
-    return [body]
+    start_response(
+        status,
+        [
+            ("Content-Type", "text/html; charset=utf-8"),
+            ("Content-Length", str(len(body))),
+            *SECURITY_HEADERS,
+        ],
+    )
+    return [b"" if method == "HEAD" else body]
 
 
 if __name__ == "__main__":

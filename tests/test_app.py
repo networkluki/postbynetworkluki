@@ -1,8 +1,9 @@
-import unittest
 import base64
 import io
 import os
 import tempfile
+import unittest
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 
 from app import POSTS, application, csrf_token
@@ -20,6 +21,7 @@ def request(path, method="GET", data=None, authorized=False):
         "PATH_INFO": path,
         "REQUEST_METHOD": method,
         "CONTENT_LENGTH": str(len(payload)),
+        "CONTENT_TYPE": "application/x-www-form-urlencoded",
         "wsgi.input": io.BytesIO(payload),
     }
     if authorized:
@@ -45,7 +47,9 @@ class BlogTests(unittest.TestCase):
             with self.subTest(path=path):
                 response = request(path)
                 self.assertEqual(response["status"], "200 OK")
-                self.assertEqual(response["headers"]["Content-Type"], "text/html; charset=utf-8")
+                self.assertEqual(
+                    response["headers"]["Content-Type"], "text/html; charset=utf-8"
+                )
 
     def test_home_links_to_each_section(self):
         body = request("/")["body"].decode()
@@ -59,6 +63,19 @@ class BlogTests(unittest.TestCase):
         self.assertEqual(response["status"], "200 OK")
         self.assertEqual(response["headers"]["Content-Type"], "text/css; charset=utf-8")
         self.assertIn(b".cards", response["body"])
+
+    def test_responses_include_security_headers(self):
+        response = request("/")
+        self.assertIn("Content-Security-Policy", response["headers"])
+        self.assertEqual(response["headers"]["X-Content-Type-Options"], "nosniff")
+
+    def test_public_routes_reject_post_and_support_head(self):
+        rejected = request("/blog", method="POST")
+        head = request("/blog", method="HEAD")
+        self.assertEqual(rejected["status"], "405 Method Not Allowed")
+        self.assertEqual(rejected["headers"]["Allow"], "GET, HEAD")
+        self.assertEqual(head["status"], "200 OK")
+        self.assertEqual(head["body"], b"")
 
     def test_every_post_has_a_page(self):
         for post in POSTS:
@@ -106,13 +123,57 @@ class BlogTests(unittest.TestCase):
 
     def test_admin_rejects_missing_and_invalid_csrf_data(self):
         missing = request(
-            "/admin/new", method="POST", authorized=True, data={"csrf_token": csrf_token()}
+            "/admin/new",
+            method="POST",
+            authorized=True,
+            data={"csrf_token": csrf_token()},
         )
         invalid_csrf = request(
             "/admin/new", method="POST", authorized=True, data={"csrf_token": "wrong"}
         )
         self.assertEqual(missing["status"], "400 Bad Request")
         self.assertEqual(invalid_csrf["status"], "403 Forbidden")
+
+    def test_admin_rejects_a_bundled_post_slug(self):
+        post = POSTS[0]
+        response = request(
+            "/admin/new",
+            method="POST",
+            authorized=True,
+            data={
+                "csrf_token": csrf_token(),
+                "title": post.title,
+                "category": "Duplicate",
+                "excerpt": "This must not shadow bundled content.",
+                "content": "Duplicate content.",
+                "read_time": "1 min",
+            },
+        )
+        self.assertEqual(response["status"], "409 Conflict")
+
+    def test_concurrent_posts_are_persisted(self):
+        def publish(index):
+            return request(
+                "/admin/new",
+                method="POST",
+                authorized=True,
+                data={
+                    "csrf_token": csrf_token(),
+                    "title": f"Concurrent post {index}",
+                    "category": "Test",
+                    "excerpt": "A concurrent publishing test.",
+                    "content": "Content.",
+                    "read_time": "1 min",
+                },
+            )["status"]
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            statuses = list(executor.map(publish, range(4)))
+
+        self.assertEqual(statuses, ["303 See Other"] * 4)
+        listing = request("/blog")["body"].decode()
+        for index in range(4):
+            self.assertIn(f"Concurrent post {index}", listing)
 
 
 if __name__ == "__main__":
