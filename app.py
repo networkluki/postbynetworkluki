@@ -146,8 +146,19 @@ def changelog() -> bytes:
 
 
 def article(post: Post) -> bytes:
+    """Render one post using the same heading block as the section pages."""
     paragraphs = "".join(f"<p>{escape(paragraph)}</p>" for paragraph in post.content)
-    content = f'<article class="article"><a class="back" href="/blog">← All posts</a><p class="eyebrow">{escape(post.category)}</p><h1>{escape(post.title)}</h1><div class="post-meta"><time datetime="{post.published.isoformat()}">{post.published.strftime("%Y-%m-%d")}</time><span>{escape(post.read_time)} read</span></div><p class="lead">{escape(post.excerpt)}</p><div class="prose">{paragraphs}</div></article>'
+    content = (
+        '<article class="article">'
+        f'<header class="page-heading"><p class="kicker">{escape(post.category)}</p>'
+        f"<h1>{escape(post.title)}</h1><p>{escape(post.excerpt)}</p></header>"
+        f'<div class="post-meta"><time datetime="{post.published.isoformat()}">'
+        f'{post.published.strftime("%Y-%m-%d")}</time>'
+        f"<span>{escape(post.read_time)} read</span></div>"
+        f'<div class="prose">{paragraphs}</div>'
+        '<a class="back" href="/blog">← All posts</a>'
+        "</article>"
+    )
     return page(f"{post.title} · Post", content, description=post.excerpt)
 
 
