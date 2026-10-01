@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Command-line publishing for the Post blog.
+"""Write blog posts from Python instead of by hand.
 
-Writes to the same SQLite database as the web admin form and reuses its
-validation, so a post added here is identical to one published in the browser.
+A post is a text file in src/posts. This tool creates, lists, prints and removes
+those files using the same validation the build uses, so an accepted post is
+guaranteed to render:
 
     python manage.py new --title "Hello" --category Notes \
         --excerpt "Short summary." --read-time "4 min" --content-file post.txt
@@ -10,9 +11,9 @@ validation, so a post added here is identical to one published in the browser.
     python manage.py show hello
     python manage.py delete hello --yes
 
-The database location follows BLOG_DB_PATH, exactly like the web app. Set it to
-the same value the server uses, or posts are written to a database the site
-never reads.
+Writing a file only changes the working tree. The post appears on the site after
+`python build.py` is verified locally and the file is committed and pushed, which
+is what triggers the GitHub Pages deployment.
 """
 
 from __future__ import annotations
@@ -22,14 +23,14 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from app import (
-    POST_FIELD_LIMITS,
-    POSTS,
+from content import (
+    FIELD_LIMITS,
     PostError,
     all_posts,
-    database_path,
     delete_post,
-    store_post,
+    post_path,
+    posts_directory,
+    write_post,
 )
 
 PROMPTS = {
@@ -38,7 +39,6 @@ PROMPTS = {
     "excerpt": "Excerpt, one or two sentences",
     "read_time": "Reading time (for example 5 min)",
 }
-BUNDLED_SLUGS = frozenset(post.slug for post in POSTS)
 
 
 def fail(message: str) -> int:
@@ -57,8 +57,7 @@ def iso_date(value: str) -> date:
 
 def prompt_field(field: str) -> str:
     """Ask for a single field. Only called when stdin is a terminal."""
-    limit = POST_FIELD_LIMITS[field]
-    return input(f"{PROMPTS[field]} (max {limit} characters): ").strip()
+    return input(f"{PROMPTS[field]} (max {FIELD_LIMITS[field]} characters): ").strip()
 
 
 def prompt_content() -> str:
@@ -108,34 +107,39 @@ def command_new(args: argparse.Namespace) -> int:
                     raise PostError(f"--{field.replace('_', '-')} is required")
                 values[field] = prompt_field(field)
         values["content"] = resolve_content(args, interactive)
-        post = store_post(values, published=args.published, slug=args.slug)
+        post = write_post(values, published=args.published, slug=args.slug)
     except PostError as error:
         return fail(error.message)
     except (EOFError, KeyboardInterrupt):
         print(file=sys.stderr)
         return fail("aborted")
-    print(f"Published {post.title!r} as /blog/{post.slug}")
-    print(f"Database: {database_path()}")
+    print(f"Wrote {post_path(post.slug)}")
+    print(f"Local path: /blog/{post.slug}")
+    print("Next: python build.py, then commit and push the file to publish it.")
     return 0
 
 
 def command_list(args: argparse.Namespace) -> int:
-    posts = all_posts()
+    try:
+        posts = all_posts()
+    except PostError as error:
+        return fail(error.message)
     if not posts:
-        print("No posts.")
+        print(f"No posts in {posts_directory()}")
         return 0
-    print(f"{'DATE':<12} {'SOURCE':<9} {'SLUG':<42} TITLE")
+    print(f"{'DATE':<12} {'SLUG':<42} TITLE")
     for post in posts:
-        source = "bundled" if post.slug in BUNDLED_SLUGS else "database"
-        print(
-            f"{post.published.isoformat():<12} {source:<9} {post.slug:<42} {post.title}"
-        )
-    print(f"\n{len(posts)} post(s). Database: {database_path()}")
+        print(f"{post.published.isoformat():<12} {post.slug:<42} {post.title}")
+    print(f"\n{len(posts)} post(s) in {posts_directory()}")
     return 0
 
 
 def command_show(args: argparse.Namespace) -> int:
-    match = next((post for post in all_posts() if post.slug == args.slug), None)
+    try:
+        posts = all_posts()
+    except PostError as error:
+        return fail(error.message)
+    match = next((post for post in posts if post.slug == args.slug), None)
     if match is None:
         return fail(f"no post with slug {args.slug!r}")
     print(f"Title:    {match.title}")
@@ -143,52 +147,48 @@ def command_show(args: argparse.Namespace) -> int:
     print(f"Category: {match.category}")
     print(f"Date:     {match.published.isoformat()}")
     print(f"Reading:  {match.read_time}")
-    print(f"Source:   {'bundled' if match.slug in BUNDLED_SLUGS else 'database'}")
+    print(f"File:     {post_path(match.slug)}")
+    if match.legacy_slugs:
+        print(f"Legacy:   {', '.join(match.legacy_slugs)}")
     print(f"Excerpt:  {match.excerpt}\n")
     print("\n\n".join(match.content))
     return 0
 
 
 def command_delete(args: argparse.Namespace) -> int:
-    if args.slug in BUNDLED_SLUGS:
-        return fail(
-            f"{args.slug!r} is a bundled starter post defined in app.py "
-            "and cannot be deleted from the database"
-        )
     if not args.yes:
         if not sys.stdin.isatty():
             return fail("refusing to delete without --yes")
-        answer = input(f"Delete {args.slug!r} permanently? Type yes to confirm: ")
+        answer = input(f"Delete {post_path(args.slug)} permanently? Type yes: ")
         if answer.strip().lower() != "yes":
             return fail("aborted")
     if not delete_post(args.slug):
-        return fail(f"no stored post with slug {args.slug!r}")
-    print(f"Deleted {args.slug}")
+        return fail(f"no post file for slug {args.slug!r}")
+    print(f"Deleted {post_path(args.slug)}")
+    print("Next: python build.py, then commit and push the deletion.")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="manage.py",
-        description="Publish and manage Post blog entries from the command line.",
+        description="Create and manage the post files in src/posts.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    new = subparsers.add_parser("new", help="publish a new post")
-    new.add_argument("--title", help=f"max {POST_FIELD_LIMITS['title']} characters")
-    new.add_argument(
-        "--category", help=f"max {POST_FIELD_LIMITS['category']} characters"
-    )
-    new.add_argument("--excerpt", help=f"max {POST_FIELD_LIMITS['excerpt']} characters")
+    new = subparsers.add_parser("new", help="write a new post file")
+    new.add_argument("--title", help=f"max {FIELD_LIMITS['title']} characters")
+    new.add_argument("--category", help=f"max {FIELD_LIMITS['category']} characters")
+    new.add_argument("--excerpt", help=f"max {FIELD_LIMITS['excerpt']} characters")
     new.add_argument(
         "--read-time",
         dest="read_time",
-        help=f"max {POST_FIELD_LIMITS['read_time']} characters",
+        help=f"max {FIELD_LIMITS['read_time']} characters",
     )
     content_source = new.add_mutually_exclusive_group()
     content_source.add_argument(
         "--content",
-        help=f"post body, max {POST_FIELD_LIMITS['content']} characters, "
+        help=f"post body, max {FIELD_LIMITS['content']} characters, "
         "paragraphs separated by a blank line",
     )
     content_source.add_argument(
@@ -204,14 +204,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     new.set_defaults(handler=command_new)
 
-    listing = subparsers.add_parser("list", help="list every post")
+    listing = subparsers.add_parser("list", help="list every post file")
     listing.set_defaults(handler=command_list)
 
     show = subparsers.add_parser("show", help="print one post")
     show.add_argument("slug")
     show.set_defaults(handler=command_show)
 
-    delete = subparsers.add_parser("delete", help="delete a stored post")
+    delete = subparsers.add_parser("delete", help="delete a post file")
     delete.add_argument("slug")
     delete.add_argument(
         "--yes", action="store_true", help="skip the confirmation prompt"

@@ -1,46 +1,43 @@
-import base64
 import io
-import os
-import tempfile
 import unittest
-from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlencode
 
-from app import POSTS, application, csrf_token
+from app import application
+from helpers import ContentDirectoryTestCase, write_post_file
 
 
-def request(path, method="GET", data=None, authorized=False):
+def request(path, method="GET"):
     response = {}
 
     def start_response(status, headers):
         response["status"] = status
         response["headers"] = dict(headers)
 
-    payload = urlencode(data or {}).encode()
     environ = {
         "PATH_INFO": path,
         "REQUEST_METHOD": method,
-        "CONTENT_LENGTH": str(len(payload)),
-        "CONTENT_TYPE": "application/x-www-form-urlencoded",
-        "wsgi.input": io.BytesIO(payload),
+        "CONTENT_LENGTH": "0",
+        "wsgi.input": io.BytesIO(b""),
     }
-    if authorized:
-        credentials = base64.b64encode(b"editor:test-password").decode()
-        environ["HTTP_AUTHORIZATION"] = f"Basic {credentials}"
     response["body"] = b"".join(application(environ, start_response))
     return response
 
 
-class BlogTests(unittest.TestCase):
+class BlogTests(ContentDirectoryTestCase):
     def setUp(self):
-        self.temp_directory = tempfile.TemporaryDirectory()
-        os.environ["BLOG_DB_PATH"] = os.path.join(self.temp_directory.name, "posts.db")
-        os.environ["BLOG_ADMIN_PASSWORD"] = "test-password"
-
-    def tearDown(self):
-        self.temp_directory.cleanup()
-        os.environ.pop("BLOG_DB_PATH", None)
-        os.environ.pop("BLOG_ADMIN_PASSWORD", None)
+        super().setUp()
+        write_post_file(
+            self.posts_directory,
+            "newest-post",
+            title="The newest post",
+            published="2026-06-01",
+            legacy_slugs="aldsta-slugen",
+        )
+        write_post_file(
+            self.posts_directory,
+            "older-post",
+            title="The older post",
+            published="2026-02-01",
+        )
 
     def test_main_pages_are_available(self):
         for path in ("/", "/ideas", "/blog", "/changelog"):
@@ -51,129 +48,81 @@ class BlogTests(unittest.TestCase):
                     response["headers"]["Content-Type"], "text/html; charset=utf-8"
                 )
 
-    def test_home_links_to_each_section(self):
+    def test_home_shows_the_latest_post_and_links_to_each_section(self):
         body = request("/")["body"].decode()
         self.assertIn('<html lang="en">', body)
-        self.assertIn("Thoughts worth", body)
+        self.assertIn("The newest post", body)
+        self.assertNotIn("The older post", body)
         for path in ("/ideas", "/blog", "/changelog"):
             self.assertIn(f'href="{path}"', body)
+
+    def test_listing_shows_every_post(self):
+        body = request("/blog")["body"].decode()
+        self.assertIn("The newest post", body)
+        self.assertIn("The older post", body)
 
     def test_stylesheet_is_served(self):
         response = request("/static/style.css")
         self.assertEqual(response["status"], "200 OK")
         self.assertEqual(response["headers"]["Content-Type"], "text/css; charset=utf-8")
-        self.assertIn(b".cards", response["body"])
+        self.assertIn(b".nav-card", response["body"])
 
     def test_responses_include_security_headers(self):
-        response = request("/")
-        self.assertIn("Content-Security-Policy", response["headers"])
-        self.assertEqual(response["headers"]["X-Content-Type-Options"], "nosniff")
-
-    def test_public_routes_reject_post_and_support_head(self):
-        rejected = request("/blog", method="POST")
-        head = request("/blog", method="HEAD")
-        self.assertEqual(rejected["status"], "405 Method Not Allowed")
-        self.assertEqual(rejected["headers"]["Allow"], "GET, HEAD")
-        self.assertEqual(head["status"], "200 OK")
-        self.assertEqual(head["body"], b"")
+        headers = request("/")["headers"]
+        self.assertIn("default-src 'self'", headers["Content-Security-Policy"])
+        self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
 
     def test_every_post_has_a_page(self):
-        for post in POSTS:
-            with self.subTest(slug=post.slug):
-                response = request(f"/blog/{post.slug}")
+        for slug in ("newest-post", "older-post"):
+            with self.subTest(slug=slug):
+                response = request(f"/blog/{slug}")
                 self.assertEqual(response["status"], "200 OK")
-                self.assertIn(post.title, response["body"].decode())
+                self.assertIn(b"First paragraph.", response["body"])
 
-    def test_previous_swedish_urls_still_work(self):
-        self.assertEqual(request("/ideer")["status"], "200 OK")
-        self.assertEqual(request("/blogg")["status"], "200 OK")
-        response = request("/blogg/bygg-mindre-lanserar-snabbare")
-        self.assertEqual(response["status"], "200 OK")
-        self.assertIn("Build less. Launch faster.", response["body"].decode())
+    def test_retired_paths_still_work(self):
+        for path in ("/ideer", "/blogg"):
+            with self.subTest(path=path):
+                self.assertEqual(request(path)["status"], "200 OK")
+        for path in ("/blog/aldsta-slugen", "/blogg/aldsta-slugen", "/blogg/newest-post"):
+            with self.subTest(path=path):
+                response = request(path)
+                self.assertEqual(response["status"], "200 OK")
+                self.assertIn(b"The newest post", response["body"])
+
+    def test_write_methods_are_rejected_and_head_is_supported(self):
+        for path in ("/", "/blog", "/static/style.css"):
+            with self.subTest(path=path):
+                response = request(path, method="POST")
+                self.assertEqual(response["status"], "405 Method Not Allowed")
+                self.assertEqual(response["headers"]["Allow"], "GET, HEAD")
+                head = request(path, method="HEAD")
+                self.assertEqual(head["status"], "200 OK")
+                self.assertEqual(head["body"], b"")
+
+    def test_post_text_is_escaped(self):
+        write_post_file(
+            self.posts_directory,
+            "injection-attempt",
+            title="<script>alert(1)</script>",
+            excerpt='" onload="alert(2)',
+            body="<img src=x onerror=alert(3)>",
+            published="2026-07-01",
+        )
+        body = request("/blog/injection-attempt")["body"].decode()
+        self.assertNotIn("<script>alert(1)</script>", body)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", body)
+        # The payload may appear as inert escaped text, never as live markup.
+        self.assertNotIn("<img src=x", body)
+        self.assertIn("&lt;img src=x onerror=alert(3)&gt;", body)
+        home = request("/")["body"].decode()
+        self.assertNotIn('onload="alert(2)', home)
 
     def test_unknown_page_returns_custom_404(self):
-        response = request("/does-not-exist")
-        self.assertEqual(response["status"], "404 Not Found")
-        self.assertIn("There is nothing here", response["body"].decode())
-
-    def test_admin_requires_authentication(self):
-        response = request("/admin/new")
-        self.assertEqual(response["status"], "401 Unauthorized")
-        self.assertIn("WWW-Authenticate", response["headers"])
-
-    def test_admin_can_publish_unicode_post(self):
-        response = request(
-            "/admin/new",
-            method="POST",
-            authorized=True,
-            data={
-                "csrf_token": csrf_token(),
-                "title": "A better café idea",
-                "category": "Lessons",
-                "excerpt": "A short introduction.",
-                "content": "The first paragraph.\n\nThe second paragraph.",
-                "read_time": "2 min",
-            },
-        )
-        self.assertEqual(response["status"], "303 See Other")
-        self.assertEqual(response["headers"]["Location"], "/blog/a-better-cafe-idea")
-        article = request("/blog/a-better-cafe-idea")
-        self.assertEqual(article["status"], "200 OK")
-        self.assertIn("A better café idea", article["body"].decode())
-
-    def test_admin_rejects_missing_and_invalid_csrf_data(self):
-        missing = request(
-            "/admin/new",
-            method="POST",
-            authorized=True,
-            data={"csrf_token": csrf_token()},
-        )
-        invalid_csrf = request(
-            "/admin/new", method="POST", authorized=True, data={"csrf_token": "wrong"}
-        )
-        self.assertEqual(missing["status"], "400 Bad Request")
-        self.assertEqual(invalid_csrf["status"], "403 Forbidden")
-
-    def test_admin_rejects_a_bundled_post_slug(self):
-        post = POSTS[0]
-        response = request(
-            "/admin/new",
-            method="POST",
-            authorized=True,
-            data={
-                "csrf_token": csrf_token(),
-                "title": post.title,
-                "category": "Duplicate",
-                "excerpt": "This must not shadow bundled content.",
-                "content": "Duplicate content.",
-                "read_time": "1 min",
-            },
-        )
-        self.assertEqual(response["status"], "409 Conflict")
-
-    def test_concurrent_posts_are_persisted(self):
-        def publish(index):
-            return request(
-                "/admin/new",
-                method="POST",
-                authorized=True,
-                data={
-                    "csrf_token": csrf_token(),
-                    "title": f"Concurrent post {index}",
-                    "category": "Test",
-                    "excerpt": "A concurrent publishing test.",
-                    "content": "Content.",
-                    "read_time": "1 min",
-                },
-            )["status"]
-
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            statuses = list(executor.map(publish, range(4)))
-
-        self.assertEqual(statuses, ["303 See Other"] * 4)
-        listing = request("/blog")["body"].decode()
-        for index in range(4):
-            self.assertIn(f"Concurrent post {index}", listing)
+        for path in ("/missing", "/blog/missing"):
+            with self.subTest(path=path):
+                response = request(path)
+                self.assertEqual(response["status"], "404 Not Found")
+                self.assertIn(b"There is nothing here.", response["body"])
 
 
 if __name__ == "__main__":
