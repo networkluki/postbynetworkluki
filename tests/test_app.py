@@ -147,6 +147,21 @@ class BlogTests(ContentDirectoryTestCase):
         home = request("/")["body"].decode()
         self.assertNotIn('onload="alert(2)', home)
 
+    def test_rss_feed_is_served(self):
+        response = request("/feed.xml")
+        self.assertEqual(response["status"], "200 OK")
+        self.assertEqual(
+            response["headers"]["Content-Type"], "application/rss+xml; charset=utf-8"
+        )
+        body = response["body"].decode()
+        self.assertIn("<rss", body)
+        self.assertIn("<title>The newest post</title>", body)
+        self.assertIn("https://blog.networkluki.com/blog/newest-post", body)
+        self.assertIn("<pubDate>", body)
+        head = request("/feed.xml", method="HEAD")
+        self.assertEqual(head["status"], "200 OK")
+        self.assertEqual(head["body"], b"")
+
     def test_unknown_page_returns_custom_404(self):
         for path in ("/missing", "/blog/missing"):
             with self.subTest(path=path):

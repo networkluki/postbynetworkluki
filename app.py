@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+from datetime import datetime, timezone
+from email.utils import format_datetime
 from html import escape
 from pathlib import Path
 from typing import Iterable
@@ -29,6 +31,8 @@ from content import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+# The public origin, used for absolute links in the RSS feed.
+SITE_URL = "https://blog.networkluki.com"
 SECURITY_HEADERS = [
     (
         "Content-Security-Policy",
@@ -177,6 +181,54 @@ def not_found() -> bytes:
         '<section class="empty"><p class="kicker">404</p><h1>There is nothing here.</h1><p>The page may have moved or may never have existed.</p><a class="button" href="/">Back to the home page</a></section>',
     )
 
+
+def _rfc822(post: Post) -> str:
+    """A post's publish moment as an RFC 822 date, in UTC (for <pubDate>)."""
+    hour, minute = (post.published_time.split(":") + ["0"])[:2] if post.published_time else ("0", "0")
+    moment = datetime(
+        post.published.year,
+        post.published.month,
+        post.published.day,
+        int(hour),
+        int(minute),
+        tzinfo=timezone.utc,
+    )
+    return format_datetime(moment)
+
+
+def feed() -> bytes:
+    """An RSS 2.0 feed of every post, newest first."""
+    posts = all_posts()
+    items = []
+    for post in posts:
+        url = f"{SITE_URL}/blog/{post.slug}"
+        items.append(
+            "<item>"
+            f"<title>{escape(post.title)}</title>"
+            f"<link>{escape(url)}</link>"
+            f'<guid isPermaLink="true">{escape(url)}</guid>'
+            f"<category>{escape(post.category)}</category>"
+            f"<pubDate>{_rfc822(post)}</pubDate>"
+            f"<description>{escape(post.excerpt)}</description>"
+            "</item>"
+        )
+    # Use the newest post's date so the feed is reproducible across builds.
+    last_build = _rfc822(posts[0]) if posts else format_datetime(datetime.now(timezone.utc))
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n'
+        "<channel>"
+        "<title>Post by networkluki</title>"
+        f"<link>{SITE_URL}/</link>"
+        "<description>Articles, changelog entries, and ideas from networkluki.</description>"
+        "<language>en</language>"
+        f'<atom:link href="{SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>'
+        f"<lastBuildDate>{last_build}</lastBuildDate>"
+        + "".join(items)
+        + "</channel>\n</rss>\n"
+    )
+    return xml.encode("utf-8")
+
 def application(environ: dict, start_response) -> Iterable[bytes]:
     """Serve the rendered pages over WSGI. Read-only: GET and HEAD alone."""
     path = unquote(environ.get("PATH_INFO", "/")).rstrip("/") or "/"
@@ -209,6 +261,18 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
             "404 Not Found",
             [
                 ("Content-Type", "text/html; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+                *SECURITY_HEADERS,
+            ],
+        )
+        return [b"" if method == "HEAD" else body]
+
+    if path == "/feed.xml":
+        body = feed()
+        start_response(
+            "200 OK",
+            [
+                ("Content-Type", "application/rss+xml; charset=utf-8"),
                 ("Content-Length", str(len(body))),
                 *SECURITY_HEADERS,
             ],

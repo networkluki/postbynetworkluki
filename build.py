@@ -30,6 +30,7 @@ from pathlib import Path
 from app import (
     article,
     changelog,
+    feed,
     home,
     ideas,
     listing,
@@ -139,6 +140,7 @@ def build(output: Path = OUTPUT, *, force: bool = False) -> list[str]:
         written.append(write(output, f"{name}/index.html", redirect_page(target)))
     written.extend(post_pages(output, posts))
     written.append(write(output, "404.html", not_found()))
+    written.append(write(output, "feed.xml", feed()))
 
     stylesheet = ROOT / "static" / "style.css"
     if not stylesheet.is_file():
