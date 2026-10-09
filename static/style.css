@@ -110,6 +110,13 @@ h1,h2,h3,h4,p{margin-top:0;}
 .post-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;font-size:.72rem;color:var(--muted);}
 .post-empty{color:var(--muted);padding:10px 0 60px;}
 
+/* ---- quotes ---- */
+.quote-list{display:flex;flex-direction:column;gap:18px;max-width:760px;padding-bottom:60px;}
+.quote{margin:0;border:1px solid var(--border);border-left:3px solid var(--hover);border-radius:0 12px 12px 0;padding:18px 22px;transition:border-color .15s ease;}
+.quote:hover{border-color:var(--hover);}
+.quote blockquote{margin:0;font-size:1.1rem;line-height:1.6;font-style:italic;color:var(--text);}
+.quote figcaption{margin-top:12px;font-size:.8rem;color:var(--muted);font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;}
+
 /* category eyebrow accent */
 .eyebrow.cat-articles{color:var(--c-articles);}
 .eyebrow.cat-changelog{color:var(--c-changelog);}

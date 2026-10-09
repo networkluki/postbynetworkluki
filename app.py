@@ -182,6 +182,47 @@ def not_found() -> bytes:
     )
 
 
+DEFAULT_QUOTE_AUTHOR = "Luki Hackwell"
+
+
+def read_quotes() -> list[tuple[str, str]]:
+    """Read src/quotes.txt: one quote per line, optional '| author'."""
+    path = BASE_DIR / "src" / "quotes.txt"
+    if not path.is_file():
+        return []
+    quotes_list: list[tuple[str, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "|" in line:
+            text, author = line.rsplit("|", 1)
+            text, author = text.strip(), (author.strip() or DEFAULT_QUOTE_AUTHOR)
+        else:
+            text, author = line, DEFAULT_QUOTE_AUTHOR
+        if text:
+            quotes_list.append((text, author))
+    return quotes_list
+
+
+def quotes() -> bytes:
+    items = read_quotes()
+    if items:
+        blocks = "".join(
+            f'<figure class="quote"><blockquote>{escape(text)}</blockquote>'
+            f"<figcaption>— {escape(author)}</figcaption></figure>"
+            for text, author in items
+        )
+        body = f'<section class="quote-list">{blocks}</section>'
+    else:
+        body = '<p class="post-empty">No quotes yet.</p>'
+    return page(
+        "Quotes · Post",
+        '<header class="page-heading"><p class="kicker">QUOTES</p>'
+        "<h1>Quotes</h1><p>Lines worth keeping.</p></header>" + body,
+    )
+
+
 def _rfc822(post: Post) -> str:
     """A post's publish moment as an RFC 822 date, in UTC (for <pubDate>)."""
     hour, minute = (post.published_time.split(":") + ["0"])[:2] if post.published_time else ("0", "0")
@@ -280,7 +321,13 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
         return [b"" if method == "HEAD" else body]
 
     path = SECTION_ALIASES.get(path, path)
-    routes = {"/": home, "/ideas": ideas, "/blog": listing, "/changelog": changelog}
+    routes = {
+        "/": home,
+        "/ideas": ideas,
+        "/blog": listing,
+        "/changelog": changelog,
+        "/quotes": quotes,
+    }
     status = "200 OK"
     if path in routes:
         body = routes[path]()

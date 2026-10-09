@@ -162,6 +162,11 @@ class BlogTests(ContentDirectoryTestCase):
         self.assertEqual(head["status"], "200 OK")
         self.assertEqual(head["body"], b"")
 
+    def test_quotes_page_is_served(self):
+        response = request("/quotes")
+        self.assertEqual(response["status"], "200 OK")
+        self.assertIn(b"<h1>Quotes</h1>", response["body"])
+
     def test_unknown_page_returns_custom_404(self):
         for path in ("/missing", "/blog/missing"):
             with self.subTest(path=path):
