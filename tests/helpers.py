@@ -7,7 +7,7 @@ from pathlib import Path
 
 POST = {
     "title": "A fixture post",
-    "category": "Notes",
+    "category": "Articles",
     "excerpt": "Used by the tests.",
     "published": "2026-05-04",
     "read_time": "2 min",

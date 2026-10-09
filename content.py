@@ -7,12 +7,16 @@ front matter block and a body of plain-text paragraphs:
 
     ---
     title: Build less. Launch faster.
-    category: Workflow
+    category: Articles
     excerpt: Three simple questions that help you start smaller.
     published: 2026-09-24
+    published_time: 14:30
     read_time: 4 min
     legacy_slugs: bygg-mindre-lanserar-snabbare
     ---
+
+The category is one of Articles, Changelog or Ideas and decides the section a
+post appears in. published_time is optional (24-hour HH:MM).
 
     First paragraph.
 
@@ -40,7 +44,7 @@ POST_SUFFIX = ".md"
 FENCE = "---"
 
 REQUIRED_FIELDS = ("title", "category", "excerpt", "published", "read_time")
-OPTIONAL_FIELDS = ("legacy_slugs",)
+OPTIONAL_FIELDS = ("legacy_slugs", "published_time")
 ALLOWED_FIELDS = frozenset(REQUIRED_FIELDS + OPTIONAL_FIELDS)
 FIELD_LIMITS = {
     "title": 120,
@@ -49,8 +53,14 @@ FIELD_LIMITS = {
     "content": 20000,
     "read_time": 20,
 }
-# Fields a writer supplies; published and the slug are handled separately.
+# Fields a writer supplies; published, the time and the slug are handled separately.
 TEXT_FIELDS = ("title", "category", "excerpt", "content", "read_time")
+
+# A post belongs to exactly one of three sections. The key is the lowercase form
+# accepted in a file; the value is how the category is displayed and stored.
+CATEGORIES = {"articles": "Articles", "changelog": "Changelog", "ideas": "Ideas"}
+# Optional publish time of day, 24-hour HH:MM.
+TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 class PostError(Exception):
@@ -70,6 +80,7 @@ class Post:
     published: date
     read_time: str
     content: tuple[str, ...]
+    published_time: str = ""
     legacy_slugs: tuple[str, ...] = field(default=())
     source: str = ""
 
@@ -131,6 +142,11 @@ def validate_fields(values: Mapping[str, str], source: str = "post") -> dict[str
                 f"{source}: {name} is longer than {FIELD_LIMITS[name]} characters"
             )
         cleaned[name] = value
+    category_key = cleaned["category"].lower()
+    if category_key not in CATEGORIES:
+        allowed = ", ".join(CATEGORIES.values())
+        raise PostError(f"{source}: category must be one of: {allowed}")
+    cleaned["category"] = CATEGORIES[category_key]
     return cleaned
 
 
@@ -152,6 +168,12 @@ def parse_post(text: str, slug: str, source: str) -> Post:
             f"{source}: published must be a date in YYYY-MM-DD form, "
             f"not {fields['published']!r}"
         ) from None
+    published_time = fields.get("published_time", "").strip()
+    if published_time and not TIME_PATTERN.match(published_time):
+        raise PostError(
+            f"{source}: published_time must be a 24-hour HH:MM time, "
+            f"not {published_time!r}"
+        )
     legacy = tuple(
         part.strip()
         for part in fields.get("legacy_slugs", "").split(",")
@@ -172,6 +194,7 @@ def parse_post(text: str, slug: str, source: str) -> Post:
             for paragraph in re.split(r"\n\s*\n", cleaned["content"])
             if paragraph.strip()
         ),
+        published_time,
         legacy,
         source,
     )
@@ -196,7 +219,13 @@ def all_posts(directory: Path | None = None) -> tuple[Post, ...]:
     duplicates = find_duplicate_slugs(posts)
     if duplicates:
         raise PostError(f"slug used more than once: {', '.join(sorted(duplicates))}")
-    return tuple(sorted(posts, key=lambda post: (post.published, post.slug), reverse=True))
+    return tuple(
+        sorted(
+            posts,
+            key=lambda post: (post.published, post.published_time or "00:00", post.slug),
+            reverse=True,
+        )
+    )
 
 
 def find_duplicate_slugs(posts: list[Post] | tuple[Post, ...]) -> set[str]:
@@ -216,8 +245,26 @@ def legacy_slug_map(posts: tuple[Post, ...]) -> dict[str, str]:
     return {alias: post.slug for post in posts for alias in post.legacy_slugs}
 
 
+def published_display(post: Post) -> str:
+    """Human-readable publish date, with the time appended when present."""
+    text = post.published.strftime("%Y-%m-%d")
+    if post.published_time:
+        text += " · " + post.published_time
+    return text
+
+
+def published_machine(post: Post) -> str:
+    """The value for a <time datetime="..."> attribute (ISO 8601)."""
+    if post.published_time:
+        return f"{post.published.isoformat()}T{post.published_time}"
+    return post.published.isoformat()
+
+
 def render_post_file(
-    values: Mapping[str, str], published: date, legacy_slugs: tuple[str, ...] = ()
+    values: Mapping[str, str],
+    published: date,
+    legacy_slugs: tuple[str, ...] = (),
+    published_time: str = "",
 ) -> str:
     """Serialise a post back into the on-disk format."""
     header = [
@@ -228,6 +275,8 @@ def render_post_file(
         f"published: {published.isoformat()}",
         f"read_time: {values['read_time']}",
     ]
+    if published_time:
+        header.append(f"published_time: {published_time}")
     if legacy_slugs:
         header.append(f"legacy_slugs: {', '.join(legacy_slugs)}")
     header.append(FENCE)
@@ -245,6 +294,7 @@ def write_post(
     published: date | None = None,
     slug: str | None = None,
     directory: Path | None = None,
+    published_time: str = "",
 ) -> Post:
     """Validate and write a new post file, returning the stored post.
 
@@ -252,6 +302,9 @@ def write_post(
     """
     directory = directory or posts_directory()
     cleaned = validate_fields(values)
+    published_time = (published_time or "").strip()
+    if published_time and not TIME_PATTERN.match(published_time):
+        raise PostError("published_time must be a 24-hour HH:MM time")
     slug = slugify(slug or cleaned["title"])
     if not slug:
         raise PostError("the title must contain letters or numbers")
@@ -262,7 +315,7 @@ def write_post(
         raise PostError(f"a post with the slug {slug!r} already exists")
 
     path = post_path(slug, directory)
-    text = render_post_file(cleaned, published)
+    text = render_post_file(cleaned, published, published_time=published_time)
     directory.mkdir(parents=True, exist_ok=True)
     # Write through a temporary file in the same directory so an interrupted run
     # cannot leave a half-written post behind.

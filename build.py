@@ -148,6 +148,10 @@ def build(output: Path = OUTPUT, *, force: bool = False) -> list[str]:
     written.append(write(output, f"static/{stylesheet_name()}", styles))
     # The plain name stays for HTML that a visitor already has cached.
     written.append(write(output, "static/style.css", styles))
+    # Copy the rest of static/ verbatim (theme scripts, etc.).
+    for extra in sorted((ROOT / "static").iterdir()):
+        if extra.is_file() and extra.name != "style.css":
+            written.append(write(output, f"static/{extra.name}", extra.read_bytes()))
 
     cname = ROOT / "CNAME"
     if cname.is_file():

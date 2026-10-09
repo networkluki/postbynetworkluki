@@ -5,7 +5,7 @@ A post is a text file in src/posts. This tool creates, lists, prints and removes
 those files using the same validation the build uses, so an accepted post is
 guaranteed to render:
 
-    python manage.py new --title "Hello" --category Notes \
+    python manage.py new --title "Hello" --category Articles \
         --excerpt "Short summary." --read-time "4 min" --content-file post.txt
     python manage.py list
     python manage.py show hello
@@ -24,18 +24,21 @@ from datetime import date
 from pathlib import Path
 
 from content import (
+    CATEGORIES,
     FIELD_LIMITS,
     PostError,
+    TIME_PATTERN,
     all_posts,
     delete_post,
     post_path,
     posts_directory,
+    published_display,
     write_post,
 )
 
 PROMPTS = {
     "title": "Title",
-    "category": "Category (for example Notes)",
+    "category": f"Category ({' / '.join(CATEGORIES.values())})",
     "excerpt": "Excerpt, one or two sentences",
     "read_time": "Reading time (for example 5 min)",
 }
@@ -53,6 +56,12 @@ def iso_date(value: str) -> date:
         raise argparse.ArgumentTypeError(
             f"{value!r} is not a date in YYYY-MM-DD form"
         ) from None
+
+
+def clock_time(value: str) -> str:
+    if not TIME_PATTERN.match(value):
+        raise argparse.ArgumentTypeError(f"{value!r} is not a 24-hour HH:MM time")
+    return value
 
 
 def prompt_field(field: str) -> str:
@@ -107,7 +116,12 @@ def command_new(args: argparse.Namespace) -> int:
                     raise PostError(f"--{field.replace('_', '-')} is required")
                 values[field] = prompt_field(field)
         values["content"] = resolve_content(args, interactive)
-        post = write_post(values, published=args.published, slug=args.slug)
+        post = write_post(
+            values,
+            published=args.published,
+            slug=args.slug,
+            published_time=args.time or "",
+        )
     except PostError as error:
         return fail(error.message)
     except (EOFError, KeyboardInterrupt):
@@ -127,9 +141,9 @@ def command_list(args: argparse.Namespace) -> int:
     if not posts:
         print(f"No posts in {posts_directory()}")
         return 0
-    print(f"{'DATE':<12} {'SLUG':<42} TITLE")
+    print(f"{'PUBLISHED':<20} {'SLUG':<42} TITLE")
     for post in posts:
-        print(f"{post.published.isoformat():<12} {post.slug:<42} {post.title}")
+        print(f"{published_display(post):<20} {post.slug:<42} {post.title}")
     print(f"\n{len(posts)} post(s) in {posts_directory()}")
     return 0
 
@@ -145,7 +159,7 @@ def command_show(args: argparse.Namespace) -> int:
     print(f"Title:    {match.title}")
     print(f"Slug:     {match.slug}")
     print(f"Category: {match.category}")
-    print(f"Date:     {match.published.isoformat()}")
+    print(f"Date:     {published_display(match)}")
     print(f"Reading:  {match.read_time}")
     print(f"File:     {post_path(match.slug)}")
     if match.legacy_slugs:
@@ -201,6 +215,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--published",
         type=iso_date,
         help="publication date as YYYY-MM-DD (default: today)",
+    )
+    new.add_argument(
+        "--time",
+        type=clock_time,
+        help="optional publication time as HH:MM (24-hour)",
     )
     new.set_defaults(handler=command_new)
 

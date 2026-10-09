@@ -8,14 +8,48 @@ from content import (
     legacy_slug_map,
     parse_post,
     post_path,
+    published_display,
     slugify,
     write_post,
 )
 from helpers import ContentDirectoryTestCase, write_post_file
 
+
+class CategoryTests(unittest.TestCase):
+    def test_category_must_be_one_of_the_three_sections(self):
+        text = VALID.replace("category: Articles", "category: Random")
+        with self.assertRaises(PostError) as caught:
+            parse_post(text, "x", "x.md")
+        self.assertIn("category must be one of", caught.exception.message)
+
+    def test_category_is_normalised_to_its_display_form(self):
+        text = VALID.replace("category: Articles", "category: changelog")
+        self.assertEqual(parse_post(text, "x", "x.md").category, "Changelog")
+
+
+class PublishedTimeTests(unittest.TestCase):
+    def test_time_is_optional_and_defaults_to_empty(self):
+        self.assertEqual(parse_post(VALID, "x", "x.md").published_time, "")
+
+    def test_a_valid_time_is_parsed_and_displayed(self):
+        text = VALID.replace(
+            "published: 2026-09-24", "published: 2026-09-24\npublished_time: 14:30"
+        )
+        post = parse_post(text, "x", "x.md")
+        self.assertEqual(post.published_time, "14:30")
+        self.assertEqual(published_display(post), "2026-09-24 · 14:30")
+
+    def test_a_bad_time_is_rejected(self):
+        text = VALID.replace(
+            "published: 2026-09-24", "published: 2026-09-24\npublished_time: 25:99"
+        )
+        with self.assertRaises(PostError) as caught:
+            parse_post(text, "x", "x.md")
+        self.assertIn("HH:MM", caught.exception.message)
+
 VALID = """---
 title: Build less
-category: Workflow
+category: Articles
 excerpt: A short summary.
 published: 2026-09-24
 read_time: 4 min
@@ -33,7 +67,7 @@ class ParsingTests(unittest.TestCase):
     def test_a_valid_file_parses(self):
         post = parse_post(VALID, "build-less", "build-less.md")
         self.assertEqual(post.title, "Build less")
-        self.assertEqual(post.category, "Workflow")
+        self.assertEqual(post.category, "Articles")
         self.assertEqual(post.published, date(2026, 9, 24))
         self.assertEqual(post.legacy_slugs, ("bygg-mindre", "gammal-slug"))
         self.assertEqual(
@@ -122,7 +156,7 @@ class DirectoryTests(ContentDirectoryTestCase):
         post = write_post(
             {
                 "title": "Written by the API",
-                "category": "Notes",
+                "category": "Articles",
                 "excerpt": "Short.",
                 "read_time": "1 min",
                 "content": "One.\n\nTwo.",
@@ -144,7 +178,7 @@ class DirectoryTests(ContentDirectoryTestCase):
                     write_post(
                         {
                             "title": "Clash",
-                            "category": "Notes",
+                            "category": "Articles",
                             "excerpt": "Short.",
                             "read_time": "1 min",
                             "content": "Body.",
@@ -157,7 +191,7 @@ class DirectoryTests(ContentDirectoryTestCase):
         write_post(
             {
                 "title": "Clean",
-                "category": "Notes",
+                "category": "Articles",
                 "excerpt": "Short.",
                 "read_time": "1 min",
                 "content": "Body.",

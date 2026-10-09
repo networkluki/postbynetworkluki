@@ -20,19 +20,25 @@ from typing import Iterable
 from urllib.parse import unquote
 from wsgiref.simple_server import make_server
 
-from content import Post, all_posts, legacy_slug_map
+from content import (
+    Post,
+    all_posts,
+    legacy_slug_map,
+    published_display,
+    published_machine,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 SECURITY_HEADERS = [
     (
         "Content-Security-Policy",
-        "default-src 'self'; style-src 'self' https://fonts.googleapis.com; "
-        "font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'self'; "
-        "frame-ancestors 'none'",
+        "default-src 'self'; img-src 'self'; style-src 'self'; script-src 'self'; "
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     ),
     ("Referrer-Policy", "strict-origin-when-cross-origin"),
     ("X-Content-Type-Options", "nosniff"),
 ]
+STATIC_TYPES = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8"}
 # Retired paths kept as aliases so older links do not break.
 SECTION_ALIASES = {"/ideer": "/ideas", "/blogg": "/blog"}
 
@@ -74,13 +80,29 @@ def page(
 
 
 def post_card(post: Post) -> str:
+    cat_class = "cat-" + post.category.lower()
     return f"""
       <article class="post-card">
-        <p class="eyebrow">{escape(post.category)}</p>
+        <p class="eyebrow {cat_class}">{escape(post.category)}</p>
         <h2><a href="/blog/{escape(post.slug)}">{escape(post.title)}</a></h2>
         <p>{escape(post.excerpt)}</p>
-        <div class="post-meta"><time datetime="{post.published.isoformat()}">{post.published.strftime("%Y-%m-%d")}</time><span>{escape(post.read_time)} read</span></div>
+        <div class="post-meta"><time datetime="{published_machine(post)}">{escape(published_display(post))}</time><span>{escape(post.read_time)} read</span></div>
       </article>"""
+
+
+def section_listing(category: str, kicker: str, heading: str, intro: str) -> bytes:
+    """List every post in one category, or an empty-state message."""
+    selected = [post for post in all_posts() if post.category == category]
+    if selected:
+        cards = "".join(post_card(post) for post in selected)
+        body = f'<section class="post-grid">{cards}</section>'
+    else:
+        body = '<p class="post-empty">No posts in this section yet.</p>'
+    return page(
+        f"{heading} · Post",
+        f'<header class="page-heading"><p class="kicker">{escape(kicker)}</p>'
+        f"<h1>{escape(heading)}</h1><p>{escape(intro)}</p></header>{body}",
+    )
 
 
 def home() -> bytes:
@@ -89,93 +111,58 @@ def home() -> bytes:
 <section class="hero">
   <p class="kicker">POST BY NETWORKLUKI</p>
   <h1>Thoughts worth<br><em>taking further.</em></h1>
-  <p class="intro">A collection of ideas, stories, and small improvements from our corner of the internet.</p>
+  <p class="intro">Articles, changelog entries, and ideas from networkluki.</p>
 </section>
 <div class="cards" aria-label="Explore the content">
-  <a href="/ideas" class="nav-card ideas"><div class="icon" aria-hidden="true">&#128161;</div><div class="body"><h3>Ideas &amp; tips</h3><p>Thoughts and suggestions</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
-  <a href="/blog" class="nav-card blog"><div class="icon" aria-hidden="true">&#128221;</div><div class="body"><h3>Blog</h3><p>Posts and articles</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
+  <a href="/blog" class="nav-card articles"><div class="icon" aria-hidden="true">&#128221;</div><div class="body"><h3>Articles</h3><p>Posts and write-ups</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
   <a href="/changelog" class="nav-card changelog"><div class="icon" aria-hidden="true">&#128203;</div><div class="body"><h3>Changelog</h3><p>Changes and updates</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
+  <a href="/ideas" class="nav-card ideas"><div class="icon" aria-hidden="true">&#128161;</div><div class="body"><h3>Ideas</h3><p>Thoughts and sparks</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
 </div>
 <section class="featured">
-  <div><p class="eyebrow">Latest post · {latest.published.strftime("%Y-%m-%d")}</p><h2>{escape(latest.title)}</h2><p>{escape(latest.excerpt)}</p></div>
+  <div><p class="eyebrow">Latest · {escape(published_display(latest))}</p><h2>{escape(latest.title)}</h2><p>{escape(latest.excerpt)}</p></div>
   <a class="text-link" href="/blog/{latest.slug}">Read the post <span aria-hidden="true">↗</span></a>
 </section>"""
     return page("Post by networkluki", content)
 
 
 def listing() -> bytes:
-    cards = "".join(post_card(post) for post in all_posts())
-    return page(
-        "Blog · Post",
-        f'<header class="page-heading"><p class="kicker">BLOG</p><h1>Posts &amp; articles</h1><p>Thoughts, methods, and things we learn along the way.</p></header><section class="post-grid">{cards}</section>',
+    """The /blog section lists every post in the Articles category."""
+    return section_listing(
+        "Articles",
+        "ARTICLES",
+        "Posts & articles",
+        "Thoughts, methods, and things we learn along the way.",
     )
 
 
 def ideas() -> bytes:
-    items = (
-        (
-            "01",
-            "Make room for boring ideas",
-            "The obvious is often a better starting point than the original. Write it down anyway.",
-        ),
-        (
-            "02",
-            "Change perspective for ten minutes",
-            "Describe the problem as a new visitor, an expert, and someone with very little time.",
-        ),
-        (
-            "03",
-            "End with the next step",
-            "A note becomes more useful when it tells you what you can actually do now.",
-        ),
-    )
-    rows = "".join(
-        f'<article class="idea-row"><span>{n}</span><div><h2>{escape(t)}</h2><p>{escape(p)}</p></div></article>'
-        for n, t, p in items
-    )
-    return page(
-        "Ideas & tips · Post",
-        f'<header class="page-heading"><p class="kicker">IDEAS &amp; TIPS</p><h1>Small things to try</h1><p>Short prompts for better digital work.</p></header><section class="idea-list">{rows}</section>',
+    return section_listing(
+        "Ideas",
+        "IDEAS",
+        "Ideas & tips",
+        "Short prompts and sparks worth exploring.",
     )
 
 
 def changelog() -> bytes:
-    entries = (
-        (
-            "2026-10-01",
-            "Post gets a home of its own",
-            "We launched a new home page, blog, idea collection, and changelog.",
-        ),
-        (
-            "2026-09-24",
-            "The first article",
-            "We published our first longer piece about building less and learning faster.",
-        ),
-        (
-            "2026-08-29",
-            "The work begins",
-            "The first sketches, words, and technical decisions fell into place.",
-        ),
-    )
-    rows = "".join(
-        f'<article class="change-row"><time datetime="{d}">{d}</time><div><h2>{escape(t)}</h2><p>{escape(p)}</p></div></article>'
-        for d, t, p in entries
-    )
-    return page(
-        "Changelog · Post",
-        f'<header class="page-heading"><p class="kicker">CHANGELOG</p><h1>What is new?</h1><p>A straightforward record of how this place evolves.</p></header><section class="change-list">{rows}</section>',
+    return section_listing(
+        "Changelog",
+        "CHANGELOG",
+        "What is new?",
+        "A straightforward record of how this place evolves.",
     )
 
 
 def article(post: Post) -> bytes:
     """Render one post using the same heading block as the section pages."""
     paragraphs = "".join(f"<p>{escape(paragraph)}</p>" for paragraph in post.content)
+    cat_class = "cat-" + post.category.lower()
     content = (
         '<article class="article">'
-        f'<header class="page-heading"><p class="kicker">{escape(post.category)}</p>'
+        f'<header class="page-heading"><p class="kicker {cat_class}">{escape(post.category)}</p>'
         f"<h1>{escape(post.title)}</h1><p>{escape(post.excerpt)}</p></header>"
-        f'<div class="post-meta"><time datetime="{post.published.isoformat()}">'
-        f'{post.published.strftime("%Y-%m-%d")}</time>'
+        f'<div class="post-meta"><time datetime="{published_machine(post)}">'
+        f"{escape(published_display(post))}</time>"
         f"<span>{escape(post.read_time)} read</span></div>"
         f'<div class="prose">{paragraphs}</div>'
         '<a class="back" href="/blog">← All posts</a>'
@@ -199,12 +186,29 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
             "405 Method Not Allowed", [("Allow", "GET, HEAD"), *SECURITY_HEADERS]
         )
         return [b""]
-    if path in ("/static/style.css", stylesheet_href()):
-        body = stylesheet_path().read_bytes()
+    if path.startswith("/static/"):
+        name = "style.css" if path == stylesheet_href() else path[len("/static/") :]
+        static_root = (BASE_DIR / "static").resolve()
+        target = (static_root / name).resolve()
+        if static_root in target.parents and target.is_file():
+            body = target.read_bytes()
+            start_response(
+                "200 OK",
+                [
+                    (
+                        "Content-Type",
+                        STATIC_TYPES.get(target.suffix.lstrip("."), "application/octet-stream"),
+                    ),
+                    ("Content-Length", str(len(body))),
+                    *SECURITY_HEADERS,
+                ],
+            )
+            return [b"" if method == "HEAD" else body]
+        body = not_found()
         start_response(
-            "200 OK",
+            "404 Not Found",
             [
-                ("Content-Type", "text/css; charset=utf-8"),
+                ("Content-Type", "text/html; charset=utf-8"),
                 ("Content-Length", str(len(body))),
                 *SECURITY_HEADERS,
             ],

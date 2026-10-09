@@ -21,16 +21,19 @@ blog.networkluki.com
 ## Write a post
 
 ```bash
-python manage.py new --title "Publishing from the shell" --category "Notes" \
+python manage.py new --title "Publishing from the shell" --category "Articles" \
     --excerpt "A short summary shown in the listing." --read-time "2 min" \
-    --content-file post.txt
+    --published 2026-10-09 --time 14:30 --content-file post.txt
 ```
+
+`--category` must be one of **Articles**, **Changelog** or **Ideas** — it decides
+which section the post appears in (`/blog`, `/changelog`, `/ideas`).
 
 Run `python manage.py new` with no flags in a terminal and it asks for each
 field; the body ends with a line containing only `.` or with Ctrl-D. The body can
 also come from `--content` or from a pipe with `--content-file -`. `--slug`
-overrides the slug derived from the title and `--published YYYY-MM-DD` backdates
-a post.
+overrides the slug derived from the title, `--published YYYY-MM-DD` backdates a
+post, and `--time HH:MM` adds a publish time of day (24-hour).
 
 Other commands:
 
@@ -53,9 +56,10 @@ slug, so `src/posts/build-less-launch-faster.md` is served at
 ```
 ---
 title: Build less. Launch faster.
-category: Workflow
+category: Articles
 excerpt: Three simple questions that help you start smaller.
 published: 2026-09-24
+published_time: 14:30
 read_time: 4 min
 legacy_slugs: bygg-mindre-lanserar-snabbare
 ---
@@ -68,9 +72,10 @@ Second paragraph.
 | Field | Required | Limit | Notes |
 |---|---|---|---|
 | `title` | yes | 120 chars | |
-| `category` | yes | 50 chars | shown above the title |
+| `category` | yes | 50 chars | one of `Articles`, `Changelog`, `Ideas`; sets the section |
 | `excerpt` | yes | 300 chars | listing text and meta description |
 | `published` | yes | — | `YYYY-MM-DD`; posts are sorted newest first |
+| `published_time` | no | — | `HH:MM` (24-hour); shown next to the date |
 | `read_time` | yes | 20 chars | rendered as "4 min read" |
 | `legacy_slugs` | no | — | comma separated; each becomes a redirect page |
 | body | yes | 20000 chars | paragraphs separated by a blank line |

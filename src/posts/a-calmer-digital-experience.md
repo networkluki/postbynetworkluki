@@ -1,8 +1,9 @@
 ---
 title: A calmer digital experience
-category: Design
+category: Articles
 excerpt: How we use hierarchy, space, and constraints to make content easier to understand.
 published: 2026-09-12
+published_time: 09:00
 read_time: 6 min
 legacy_slugs: ett-lugnare-digitalt-flode
 ---

@@ -1,8 +1,9 @@
 ---
 title: Build less. Launch faster.
-category: Workflow
+category: Articles
 excerpt: Three simple questions that help you find the smallest version that actually creates value.
 published: 2026-09-24
+published_time: 14:30
 read_time: 4 min
 legacy_slugs: bygg-mindre-lanserar-snabbare
 ---
