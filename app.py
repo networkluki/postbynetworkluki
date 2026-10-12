@@ -29,6 +29,7 @@ from content import (
     published_display,
     published_machine,
 )
+from mdrender import render_body
 
 BASE_DIR = Path(__file__).resolve().parent
 # The public origin, used for absolute links in the RSS feed.
@@ -159,7 +160,7 @@ def changelog() -> bytes:
 
 def article(post: Post) -> bytes:
     """Render one post using the same heading block as the section pages."""
-    paragraphs = "".join(f"<p>{escape(paragraph)}</p>" for paragraph in post.content)
+    paragraphs = render_body(post.content)
     cat_class = "cat-" + post.category.lower()
     content = (
         '<article class="article">'
