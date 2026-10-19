@@ -57,6 +57,14 @@ class BuildTests(ContentDirectoryTestCase):
         self.assertIn(f'href="/static/{name}"', self.read("index.html"))
         self.assertEqual(self.read("CNAME").strip(), "blog.networkluki.com")
 
+    def test_build_copies_nested_static_subdirectories(self):
+        # static/ is copied recursively, so assets in subdirectories such as
+        # static/icons/ (the favicon set) reach the output verbatim.
+        written = build.build(self.output)
+        nested = "static/icons/favicon.ico"
+        self.assertIn(nested, written)
+        self.assertTrue((self.output / nested).is_file())
+
     def test_retired_paths_become_redirect_pages(self):
         build.build(self.output)
         cases = {
