@@ -11,6 +11,12 @@ turns each block into HTML, supporting the features post authors need:
 * Bold spans -- ``**bold**`` inside any block becomes ``<strong>bold</strong>``.
 * Italic spans -- ``*italic*`` becomes ``<em>italic</em>``. Single ``*`` markers
   never touch a ``**`` run, so bold and italic compose without clashing.
+* Links -- ``[text](url)`` becomes ``<a href="url">text</a>``. Only a strict
+  allowlist of URLs is accepted: ``https://``, ``http://`` and ``mailto:``, plus
+  same-site ``/path``, ``#anchor`` and ``./``/``../`` relatives. Anything else
+  (``javascript:``, ``data:``, protocol-relative ``//host``, ...) is left as
+  literal text, so a post can never produce a dangerous href. External links get
+  ``rel="noopener noreferrer"``.
 
 Everything else is treated as literal text. All text is HTML-escaped *before*
 any markup is inserted, so post content can never inject tags or scripts. This
@@ -46,12 +52,59 @@ _BOLD = re.compile(r"\*\*(\S(?:.*?\S)?)\*\*")
 # <strong> element and only genuine single-'*' emphasis remains.
 _ITALIC = re.compile(r"(?<!\*)\*(?!\*)(?!\s)(.+?)(?<![\s*])\*(?!\*)")
 
+# A link: '[text](url)'. The text holds no ']' and the url no ')' or space, so
+# the pair is unambiguous. The url is validated against _URL_ALLOWED before use.
+_LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
+
+# Absolute schemes we trust for a post-authored href. Checked case-insensitively.
+_ALLOWED_SCHEMES = ("https://", "http://", "mailto:")
+
+# Private-use placeholder for a rendered link while bold/italic run, so neither
+# pass can touch an href (e.g. a '*' in a url). It carries no markup character.
+_PLACEHOLDER = "{}"
+_PLACEHOLDER_RE = re.compile("(\\d+)")
+
+
+def _is_safe_url(url: str) -> bool:
+    """True if *url* (already HTML-escaped) is one a post may link to."""
+    lowered = url.lower()
+    if lowered.startswith(_ALLOWED_SCHEMES):
+        return True
+    # Same-site relatives, but never protocol-relative '//host'.
+    if url.startswith("#") or url.startswith(("./", "../")):
+        return True
+    return url.startswith("/") and not url.startswith("//")
+
+
+def _is_external(url: str) -> bool:
+    return url.lower().startswith(_ALLOWED_SCHEMES)
+
+
+def _emphasis(text: str) -> str:
+    """Apply bold then italic to an already-escaped string."""
+    bolded = _BOLD.sub(r"<strong>\1</strong>", text)
+    return _ITALIC.sub(r"<em>\1</em>", bolded)
+
 
 def render_inline(text: str) -> str:
-    """Escape *text*, then turn ``**bold**`` and ``*italic*`` into elements."""
-    escaped = escape(text)
-    bolded = _BOLD.sub(r"<strong>\1</strong>", escaped)
-    return _ITALIC.sub(r"<em>\1</em>", bolded)
+    """Escape *text*, then render links, ``**bold**`` and ``*italic*``."""
+    # Drop the placeholder sentinel if a post ever contains it literally, so it
+    # can never be used to smuggle a forged link index past the link pass.
+    escaped = escape(text).replace("", "")
+
+    links: list[str] = []
+
+    def _store_link(match: re.Match[str]) -> str:
+        label, url = match.group(1), match.group(2)
+        if not _is_safe_url(url):
+            return match.group(0)  # unknown scheme -> leave the text literal
+        rel = ' rel="noopener noreferrer"' if _is_external(url) else ""
+        links.append(f'<a href="{url}"{rel}>{_emphasis(label)}</a>')
+        return _PLACEHOLDER.format(len(links) - 1)
+
+    withlinks = _LINK.sub(_store_link, escaped)
+    emphasized = _emphasis(withlinks)
+    return _PLACEHOLDER_RE.sub(lambda m: links[int(m.group(1))], emphasized)
 
 
 def _list_items(block: str, pattern: re.Pattern[str]) -> list[str] | None:

@@ -51,6 +51,54 @@ class RenderInlineTests(unittest.TestCase):
             render_inline("*<b>*"), "<em>&lt;b&gt;</em>"
         )
 
+    def test_external_link_gets_rel(self):
+        self.assertEqual(
+            render_inline("see [the site](https://example.com)"),
+            'see <a href="https://example.com" rel="noopener noreferrer">the site</a>',
+        )
+
+    def test_internal_link_has_no_rel(self):
+        self.assertEqual(
+            render_inline("[projects](/projects/)"),
+            '<a href="/projects/">projects</a>',
+        )
+
+    def test_anchor_and_mailto_links(self):
+        self.assertEqual(
+            render_inline("[top](#top) and [mail](mailto:a@b.com)"),
+            '<a href="#top">top</a> and '
+            '<a href="mailto:a@b.com" rel="noopener noreferrer">mail</a>',
+        )
+
+    def test_link_label_renders_inline_markup(self):
+        self.assertEqual(
+            render_inline("[a **bold** label](https://e.com)"),
+            '<a href="https://e.com" rel="noopener noreferrer">'
+            "a <strong>bold</strong> label</a>",
+        )
+
+    def test_javascript_url_is_left_literal(self):
+        self.assertEqual(
+            render_inline("[x](javascript:alert(1))"),
+            "[x](javascript:alert(1))",
+        )
+
+    def test_data_url_is_left_literal(self):
+        self.assertEqual(
+            render_inline("[x](data:text/html,<script>)"),
+            "[x](data:text/html,&lt;script&gt;)",
+        )
+
+    def test_protocol_relative_url_is_left_literal(self):
+        self.assertEqual(
+            render_inline("[x](//evil.com)"), "[x](//evil.com)"
+        )
+
+    def test_link_url_quotes_cannot_break_attribute(self):
+        rendered = render_inline('[x](https://e.com/"onmouseover=y)')
+        self.assertNotIn('"onmouseover', rendered)
+        self.assertIn("&quot;onmouseover=y", rendered)
+
 
 class RenderBlockTests(unittest.TestCase):
     def test_plain_block_becomes_paragraph(self):
