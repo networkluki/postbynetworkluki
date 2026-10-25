@@ -24,6 +24,33 @@ class RenderInlineTests(unittest.TestCase):
     def test_lone_markers_are_left_literal(self):
         self.assertEqual(render_inline("2 ** 3 and ****"), "2 ** 3 and ****")
 
+    def test_italic_span_becomes_em(self):
+        self.assertEqual(
+            render_inline("an *italic* word"), "an <em>italic</em> word"
+        )
+
+    def test_bold_and_italic_compose(self):
+        self.assertEqual(
+            render_inline("**bold** and *italic*"),
+            "<strong>bold</strong> and <em>italic</em>",
+        )
+
+    def test_italic_does_not_touch_bold_runs(self):
+        self.assertEqual(
+            render_inline("**strong**"), "<strong>strong</strong>"
+        )
+
+    def test_italic_requires_non_space_flanks(self):
+        self.assertEqual(render_inline("a * b * c"), "a * b * c")
+
+    def test_lone_single_marker_is_literal(self):
+        self.assertEqual(render_inline("5 * 6 = 30"), "5 * 6 = 30")
+
+    def test_italic_text_is_escaped(self):
+        self.assertEqual(
+            render_inline("*<b>*"), "<em>&lt;b&gt;</em>"
+        )
+
 
 class RenderBlockTests(unittest.TestCase):
     def test_plain_block_becomes_paragraph(self):
@@ -53,6 +80,46 @@ class RenderBlockTests(unittest.TestCase):
 
     def test_hash_without_space_is_not_a_heading(self):
         self.assertEqual(render_block("#nothashtag"), "<p>#nothashtag</p>")
+
+    def test_unordered_list_with_dash(self):
+        self.assertEqual(
+            render_block("- one\n- two\n- three"),
+            "<ul><li>one</li><li>two</li><li>three</li></ul>",
+        )
+
+    def test_unordered_list_with_asterisk(self):
+        self.assertEqual(
+            render_block("* a\n* b"), "<ul><li>a</li><li>b</li></ul>"
+        )
+
+    def test_ordered_list(self):
+        self.assertEqual(
+            render_block("1. first\n2. second"),
+            "<ol><li>first</li><li>second</li></ol>",
+        )
+
+    def test_list_items_render_inline_markup(self):
+        self.assertEqual(
+            render_block("- a **bold** item\n- an *italic* item"),
+            "<ul><li>a <strong>bold</strong> item</li>"
+            "<li>an <em>italic</em> item</li></ul>",
+        )
+
+    def test_list_item_text_is_escaped(self):
+        self.assertEqual(
+            render_block("- <script>"), "<ul><li>&lt;script&gt;</li></ul>"
+        )
+
+    def test_mixed_block_is_not_a_list(self):
+        self.assertEqual(
+            render_block("- a list line\nbut not this one"),
+            "<p>- a list line\nbut not this one</p>",
+        )
+
+    def test_italic_paragraph_not_mistaken_for_list(self):
+        self.assertEqual(
+            render_block("*just italic text*"), "<p><em>just italic text</em></p>"
+        )
 
 
 class RenderBodyTests(unittest.TestCase):

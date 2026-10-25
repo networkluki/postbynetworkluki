@@ -17,19 +17,13 @@ A toolbox provides powerful instruments, but it is the human who decides what to
 
 When used thoughtfully, AI can help us:
 
-• Break complex problems into smaller, manageable parts.
-
-• Explore different perspectives and possible solutions.
-
-• Analyze code, identify potential bugs, and suggest optimizations.
-
-• Challenge assumptions and test logical reasoning.
-
-• Explain unfamiliar concepts and technical architectures.
-
-• Discover gaps in our knowledge and understanding.
-
-• Generate ideas that we can evaluate, refine, and develop further.
+- Break complex problems into smaller, manageable parts.
+- Explore different perspectives and possible solutions.
+- Analyze code, identify potential bugs, and suggest optimizations.
+- Challenge assumptions and test logical reasoning.
+- Explain unfamiliar concepts and technical architectures.
+- Discover gaps in our knowledge and understanding.
+- Generate ideas that we can evaluate, refine, and develop further.
 
 The real advantage is not simply getting an answer faster. It is developing a deeper understanding of how and why something works.
 
@@ -71,7 +65,7 @@ Together, they can create a more effective development and learning process, pro
 
 **My philosophy:**
 
-**Humans think. AI accelerates. Evidence validates. Humans decide.**
+*Humans think. AI accelerates. Evidence validates. Humans decide.*
 
 AI should not become a shortcut around learning.
 
