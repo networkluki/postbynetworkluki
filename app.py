@@ -280,7 +280,7 @@ def stuffs() -> bytes:
         body = '<p class="post-empty">Nothing here yet.</p>'
     return page(
         "Stuffs · Post",
-        '<header class="page-heading"><p class="kicker">STUFFS</p>'
+        '<header class="page-heading"><p class="kicker">My Stuffs</p>'
         "<h1>Stuffs</h1><p>Things I have built, and the domains they live on.</p>"
         "</header>" + body,
     )
