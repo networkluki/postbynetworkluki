@@ -36,6 +36,7 @@ from app import (
     listing,
     not_found,
     quotes,
+    stuffs,
     stylesheet_name,
 )
 from content import Post, PostError, all_posts
@@ -44,7 +45,13 @@ ROOT = Path(__file__).resolve().parent
 OUTPUT = ROOT / "public"
 # Also the marker that identifies a directory as build output we may delete.
 MARKER = ".nojekyll"
-SECTIONS = {"ideas": ideas, "blog": listing, "changelog": changelog, "quotes": quotes}
+SECTIONS = {
+    "ideas": ideas,
+    "blog": listing,
+    "changelog": changelog,
+    "stuffs": stuffs,
+    "quotes": quotes,
+}
 # Retired section paths, kept as redirects.
 SECTION_REDIRECTS = {"ideer": "/ideas", "blogg": "/blog"}
 

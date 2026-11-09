@@ -224,6 +224,68 @@ def quotes() -> bytes:
     )
 
 
+_STUFF_ALLOWED_SCHEMES = ("https://", "http://")
+
+
+def _safe_stuff_url(url: str) -> str | None:
+    """Return the URL if it is an absolute http(s) URL, else None.
+
+    The stuffs file is treated as untrusted input. Only an explicit http or
+    https scheme is accepted, so a ``javascript:``, ``data:``, or protocol-
+    relative ``//host`` value can never end up in an href.
+    """
+    if url.lower().startswith(_STUFF_ALLOWED_SCHEMES):
+        return url
+    return None
+
+
+def read_stuffs(path: Path | None = None) -> list[tuple[str, str, str]]:
+    """Read src/stuffs.txt: one item per line as ``url | title | description``.
+
+    Only the url is required; the title defaults to the url, and the description
+    is optional. Lines whose url is not a safe http(s) URL are skipped.
+    """
+    if path is None:
+        path = BASE_DIR / "src" / "stuffs.txt"
+    if not path.is_file():
+        return []
+    items: list[tuple[str, str, str]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        raw = line.split("|", 2)
+        url = _safe_stuff_url(raw[0].strip())
+        if not url:
+            continue
+        title = raw[1].strip() if len(raw) > 1 and raw[1].strip() else url
+        description = raw[2].strip() if len(raw) > 2 else ""
+        items.append((url, title, description))
+    return items
+
+
+def stuffs() -> bytes:
+    items = read_stuffs()
+    if items:
+        blocks = "".join(
+            '<article class="stuff">'
+            f'<h2><a href="{escape(url, quote=True)}" target="_blank" '
+            f'rel="noopener noreferrer">{escape(title)}</a></h2>'
+            + (f"<p>{escape(description)}</p>" if description else "")
+            + "</article>"
+            for url, title, description in items
+        )
+        body = f'<section class="stuff-list">{blocks}</section>'
+    else:
+        body = '<p class="post-empty">Nothing here yet.</p>'
+    return page(
+        "Stuffs · Post",
+        '<header class="page-heading"><p class="kicker">STUFFS</p>'
+        "<h1>Stuffs</h1><p>Things I have built, and the domains they live on.</p>"
+        "</header>" + body,
+    )
+
+
 def _rfc822(post: Post) -> str:
     """A post's publish moment as an RFC 822 date, in UTC (for <pubDate>)."""
     hour, minute = (post.published_time.split(":") + ["0"])[:2] if post.published_time else ("0", "0")
@@ -327,6 +389,7 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
         "/ideas": ideas,
         "/blog": listing,
         "/changelog": changelog,
+        "/stuffs": stuffs,
         "/quotes": quotes,
     }
     status = "200 OK"

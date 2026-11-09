@@ -1,4 +1,5 @@
 import io
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -167,12 +168,81 @@ class BlogTests(ContentDirectoryTestCase):
         self.assertEqual(response["status"], "200 OK")
         self.assertIn(b"<h1>Quotes</h1>", response["body"])
 
+    def test_stuffs_page_is_served(self):
+        response = request("/stuffs")
+        self.assertEqual(response["status"], "200 OK")
+        self.assertIn(b"<h1>Stuffs</h1>", response["body"])
+
     def test_unknown_page_returns_custom_404(self):
         for path in ("/missing", "/blog/missing"):
             with self.subTest(path=path):
                 response = request(path)
                 self.assertEqual(response["status"], "404 Not Found")
                 self.assertIn(b"There is nothing here.", response["body"])
+
+
+class StuffsTests(unittest.TestCase):
+    def _file(self, text):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        path = Path(directory.name) / "stuffs.txt"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_parses_url_title_and_description(self):
+        from app import read_stuffs
+
+        items = read_stuffs(self._file("https://example.com/ | Example | A thing I built.\n"))
+        self.assertEqual(items, [("https://example.com/", "Example", "A thing I built.")])
+
+    def test_title_defaults_to_the_url(self):
+        from app import read_stuffs
+
+        items = read_stuffs(self._file("https://example.com/path/\n"))
+        self.assertEqual(items, [("https://example.com/path/", "https://example.com/path/", "")])
+
+    def test_description_may_contain_pipes(self):
+        from app import read_stuffs
+
+        items = read_stuffs(self._file("https://x.com/ | T | a | b | c\n"))
+        self.assertEqual(items, [("https://x.com/", "T", "a | b | c")])
+
+    def test_unsafe_urls_are_skipped(self):
+        from app import read_stuffs
+
+        text = (
+            "javascript:alert(1) | X | bad\n"
+            "data:text/html,x | Y | bad\n"
+            "//evil.com | Z | bad\n"
+            "/relative/path | W | bad\n"
+            "https://ok.com/ | Good | fine\n"
+        )
+        items = read_stuffs(self._file(text))
+        self.assertEqual(items, [("https://ok.com/", "Good", "fine")])
+
+    def test_comments_and_blank_lines_are_ignored(self):
+        from app import read_stuffs
+
+        items = read_stuffs(self._file("# a comment\n\nhttps://a.com/ | A | d\n"))
+        self.assertEqual(len(items), 1)
+
+    def test_missing_file_gives_no_items(self):
+        from app import read_stuffs
+
+        self.assertEqual(read_stuffs(Path("/no/such/stuffs.txt")), [])
+
+    def test_fields_are_escaped_in_the_page(self):
+        import app
+
+        crafted = [('https://x.com/"><script>', "<b>title</b>", "<i>desc</i>")]
+        with patch("app.read_stuffs", return_value=crafted):
+            body = app.stuffs().decode()
+        self.assertNotIn("<script>", body)
+        self.assertNotIn("<b>title</b>", body)
+        self.assertNotIn("<i>desc</i>", body)
+        self.assertIn("&lt;b&gt;title&lt;/b&gt;", body)
+        # The quote in the url is escaped so it cannot break out of the attribute.
+        self.assertIn("https://x.com/&quot;&gt;&lt;script&gt;", body)
 
 
 if __name__ == "__main__":

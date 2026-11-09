@@ -116,6 +116,13 @@ h1,h2,h3,h4,p{margin-top:0;}
 .quote:hover{border-color:var(--hover);}
 .quote blockquote{margin:0;font-size:1.1rem;line-height:1.6;font-style:italic;color:var(--text);}
 .quote figcaption{margin-top:12px;font-size:.8rem;color:var(--muted);font-family:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;}
+.stuff-list{display:flex;flex-direction:column;gap:18px;max-width:760px;padding-bottom:60px;}
+.stuff{border:1px solid var(--border);border-radius:12px;padding:18px 22px;transition:border-color .15s ease;}
+.stuff:hover{border-color:var(--hover);}
+.stuff h2{margin:0 0 8px;font-size:1.1rem;line-height:1.4;word-break:break-word;}
+.stuff h2 a{color:var(--hover);text-decoration:none;}
+.stuff h2 a:hover{text-decoration:underline;text-underline-offset:2px;}
+.stuff p{margin:0;color:var(--text);line-height:1.6;}
 
 /* category eyebrow accent */
 .eyebrow.cat-articles{color:var(--c-articles);}
