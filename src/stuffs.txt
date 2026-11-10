@@ -9,3 +9,4 @@ https://addons.mozilla.org/sv-SE/firefox/user/16201611/ | Firefox Add-ons | A co
 https://chromewebstore.google.com/search/networkluki?hl=sv | Chrome Extensions | A collection of Chrome browser extensions I design, build and maintain.
 https://ipconfig.se/ | What Is My IP Address? | Fast, secure, privacy-focused public IP lookup — plus DNS and subnet tools.
 https://bitosx.se/ | Bitosx — Your Security | bitosx.se — an advanced password manager.
+https://theinfo.nu/info/time/ | The Info — Clock & Date | The current time and date at a glance, alongside the latest headlines.
