@@ -5,3 +5,4 @@
 https://theinfo.nu/stats/war/ | The Info — War stats | Killed, wounded and missing in Russia’s war against Ukraine — and what it has cost economically. A sourced overview since 24 February 2022.
 https://theinfo.nu/info/lagbevakning/ | The Info — Law tracker | Follow new laws from proposal to entry into force.
 https://theinfo.nu/info/cybersecurity/ | The Info — Cyber Threat Wire | A live, aggregated feed of cybersecurity news — threats, breaches and advisories from multiple sources, updated continuously.
+https://addons.mozilla.org/sv-SE/firefox/user/16201611/ | Firefox Add-ons | A collection of Firefox browser extensions I design, build and maintain.
