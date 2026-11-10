@@ -6,4 +6,4 @@ https://theinfo.nu/stats/war/ | The Info — War stats | Killed, wounded and mis
 https://theinfo.nu/info/lagbevakning/ | The Info — Law tracker | Follow new laws from proposal to entry into force.
 https://theinfo.nu/info/cybersecurity/ | The Info — Cyber Threat Wire | A live, aggregated feed of cybersecurity news — threats, breaches and advisories from multiple sources, updated continuously.
 https://addons.mozilla.org/sv-SE/firefox/user/16201611/ | Firefox Add-ons | A collection of Firefox browser extensions I design, build and maintain.
-https://chromewebstore.google.com/search/networkluki?hl=sv&authuser=0 | Chrome Extensions | A collection of Chrome browser extensions I design, build and maintain.
+https://chromewebstore.google.com/search/networkluki?hl=sv | Chrome Extensions | A collection of Chrome browser extensions I design, build and maintain.
