@@ -10,3 +10,7 @@ https://chromewebstore.google.com/search/networkluki?hl=sv | Chrome Extensions |
 https://ipconfig.se/ | What Is My IP Address? | Fast, secure, privacy-focused public IP lookup — plus DNS and subnet tools.
 https://bitosx.se/ | Bitosx — Your Security | bitosx.se — an advanced password manager.
 https://theinfo.nu/info/time/ | The Info — Clock & Date | The current time and date at a glance, alongside the latest headlines.
+https://theinfo.nu/info/times/ | The Info — World Clocks | Live time-zone updates from around the world.
+https://theinfo.nu/info/swep-news/ | The Info — Police Incidents | Live police incident reports from across Sweden, with statistics.
+https://theinfo.nu/info/weather/ | The Info — Stockholm Weather | Current conditions and a five-day forecast for Stockholm, from SMHI open data.
+https://theinfo.nu/info/multi/ | The Info — Nordic News | Follow the latest news from Sweden and Norway — pick a country and read articles pulled straight from its largest media sources.
