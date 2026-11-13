@@ -44,7 +44,7 @@ POST_SUFFIX = ".md"
 FENCE = "---"
 
 REQUIRED_FIELDS = ("title", "category", "excerpt", "published", "read_time")
-OPTIONAL_FIELDS = ("legacy_slugs", "published_time")
+OPTIONAL_FIELDS = ("legacy_slugs", "published_time", "image")
 ALLOWED_FIELDS = frozenset(REQUIRED_FIELDS + OPTIONAL_FIELDS)
 FIELD_LIMITS = {
     "title": 120,
@@ -61,6 +61,11 @@ TEXT_FIELDS = ("title", "category", "excerpt", "content", "read_time")
 CATEGORIES = {"articles": "Articles", "changelog": "Changelog", "ideas": "Ideas"}
 # Optional publish time of day, 24-hour HH:MM.
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# Optional hero image: a file name produced by tools/make_hero.py and served
+# from static/img/heroes/. Restricted to a safe, slug-style basename with an
+# allowed image extension so a post file can never point the <img> at another
+# path (no directories, no traversal, no arbitrary extensions).
+IMAGE_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*\.(?:webp|png|jpg|jpeg)$")
 
 
 class PostError(Exception):
@@ -83,6 +88,7 @@ class Post:
     published_time: str = ""
     legacy_slugs: tuple[str, ...] = field(default=())
     source: str = ""
+    image: str = ""
 
 
 def slugify(value: str) -> str:
@@ -182,6 +188,12 @@ def parse_post(text: str, slug: str, source: str) -> Post:
     for alias in legacy:
         if alias != slugify(alias):
             raise PostError(f"{source}: legacy slug {alias!r} is not a valid slug")
+    image = fields.get("image", "").strip()
+    if image and not IMAGE_PATTERN.match(image):
+        raise PostError(
+            f"{source}: image must be a file name like 'my-post.webp' "
+            f"(lowercase letters, digits and dashes), not {image!r}"
+        )
     return Post(
         slug,
         cleaned["category"],
@@ -197,6 +209,7 @@ def parse_post(text: str, slug: str, source: str) -> Post:
         published_time,
         legacy,
         source,
+        image,
     )
 
 
@@ -265,6 +278,7 @@ def render_post_file(
     published: date,
     legacy_slugs: tuple[str, ...] = (),
     published_time: str = "",
+    image: str = "",
 ) -> str:
     """Serialise a post back into the on-disk format."""
     header = [
@@ -279,6 +293,8 @@ def render_post_file(
         header.append(f"published_time: {published_time}")
     if legacy_slugs:
         header.append(f"legacy_slugs: {', '.join(legacy_slugs)}")
+    if image:
+        header.append(f"image: {image}")
     header.append(FENCE)
     body = "\n\n".join(
         paragraph.strip()
@@ -295,6 +311,7 @@ def write_post(
     slug: str | None = None,
     directory: Path | None = None,
     published_time: str = "",
+    image: str = "",
 ) -> Post:
     """Validate and write a new post file, returning the stored post.
 
@@ -305,6 +322,12 @@ def write_post(
     published_time = (published_time or "").strip()
     if published_time and not TIME_PATTERN.match(published_time):
         raise PostError("published_time must be a 24-hour HH:MM time")
+    image = (image or "").strip()
+    if image and not IMAGE_PATTERN.match(image):
+        raise PostError(
+            "image must be a file name like 'my-post.webp' "
+            "(lowercase letters, digits and dashes)"
+        )
     slug = slugify(slug or cleaned["title"])
     if not slug:
         raise PostError("the title must contain letters or numbers")
@@ -315,7 +338,9 @@ def write_post(
         raise PostError(f"a post with the slug {slug!r} already exists")
 
     path = post_path(slug, directory)
-    text = render_post_file(cleaned, published, published_time=published_time)
+    text = render_post_file(
+        cleaned, published, published_time=published_time, image=image
+    )
     directory.mkdir(parents=True, exist_ok=True)
     # Write through a temporary file in the same directory so an interrupted run
     # cannot leave a half-written post behind.

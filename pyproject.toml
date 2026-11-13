@@ -1,0 +1,27 @@
+# Tooling metadata only.
+#
+# The site itself is dependency-free: the GitHub Pages workflow runs plain
+# `python build.py` with no third-party packages, and nothing here is needed to
+# build or serve the site. The single dependency below (Pillow) is a LOCAL
+# authoring tool used by tools/make_hero.py to produce 800x300 article hero
+# images. Manage it with uv (https://github.com/astral-sh/uv):
+#
+#     uv sync                                   # create .venv with Pillow
+#     uv run python tools/make_hero.py p.jpg s  # make a hero image
+#     uv run python -m unittest discover -s tests
+#
+# Site releases are versioned with git tags, not the `version` field below.
+[project]
+name = "postbynetworkluki"
+version = "0"
+description = "Dependency-free static blog generator for blog.networkluki.com."
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = [
+    "pillow>=13,<14",
+]
+
+# This is an application, not an installable package: do not try to build it.
+[tool.uv]
+package = false

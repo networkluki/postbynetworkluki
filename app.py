@@ -162,10 +162,18 @@ def article(post: Post) -> bytes:
     """Render one post using the same heading block as the section pages."""
     paragraphs = render_body(post.content)
     cat_class = "cat-" + post.category.lower()
+    hero = ""
+    if post.image:
+        hero_src = escape(f"/static/img/heroes/{post.image}", quote=True)
+        hero = (
+            f'<img class="post-hero" src="{hero_src}" width="800" height="300" '
+            f'alt="{escape(post.title, quote=True)}" loading="lazy" decoding="async">'
+        )
     content = (
         '<article class="article">'
         f'<header class="page-heading"><p class="kicker {cat_class}">{escape(post.category)}</p>'
         f"<h1>{escape(post.title)}</h1><p>{escape(post.excerpt)}</p></header>"
+        f"{hero}"
         f'<div class="post-meta"><time datetime="{published_machine(post)}">'
         f"{escape(published_display(post))}</time>"
         f"<span>{escape(post.read_time)} read</span></div>"

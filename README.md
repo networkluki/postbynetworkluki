@@ -78,6 +78,7 @@ Second paragraph.
 | `published_time` | no | — | `HH:MM` (24-hour); shown next to the date |
 | `read_time` | yes | 20 chars | rendered as "4 min read" |
 | `legacy_slugs` | no | — | comma separated; each becomes a redirect page |
+| `image` | no | — | hero image file name, e.g. `my-post.webp`; see below |
 | body | yes | 20000 chars | paragraphs separated by a blank line |
 
 Paragraph breaks are the only formatting. All text is HTML-escaped when
@@ -85,6 +86,41 @@ rendered, so Markdown syntax and raw HTML in a post appear literally rather than
 being interpreted. The file name must be lowercase letters, digits and dashes,
 and no two posts may claim the same slug or legacy slug — the build fails
 instead of publishing something ambiguous.
+
+### Hero images
+
+A post can show an 800×300 banner at the top. The image is produced once from a
+photo you supply and committed to the repository; nothing runs at build time, so
+the GitHub Pages build stays dependency-free.
+
+The image tool uses [Pillow](https://pypi.org/project/pillow/), the project's
+only third-party package, managed locally with
+[uv](https://github.com/astral-sh/uv):
+
+```bash
+uv sync                                         # one-time: create .venv with Pillow
+uv run python tools/make_hero.py photo.jpg my-post
+```
+
+`make_hero.py` cover-crops and resizes the photo to exactly 800×300, strips all
+metadata (EXIF/GPS), and writes `static/img/heroes/my-post.webp`. Then reference
+it from the post's front matter and commit both files:
+
+```
+---
+title: My post
+category: Articles
+excerpt: ...
+published: 2026-11-13
+read_time: 4 min
+image: my-post.webp
+---
+```
+
+The `image` value is a bare file name (lowercase letters, digits and dashes with
+a `.webp`/`.png`/`.jpg`/`.jpeg` extension). Any path, directory or other
+extension is rejected when the post is parsed, so a post file can only ever point
+at `static/img/heroes/`.
 
 ## Preview before publishing
 
@@ -129,8 +165,11 @@ python -m unittest discover -s tests -v
 | `app.py` | page rendering and the local preview server |
 | `build.py` | renders everything into `public/` |
 | `manage.py` | command-line post management |
+| `tools/make_hero.py` | local Pillow tool that makes 800×300 article hero images |
+| `pyproject.toml`, `uv.lock` | the Pillow dev dependency for the hero tool (uv) |
 | `templates/base.html` | page shell |
 | `static/style.css` | styles, copied into the build |
+| `static/img/heroes/` | committed hero images served at `/static/img/heroes/` |
 | `CNAME` | custom domain, copied into the build |
 | `tests/` | unittest suite |
 
