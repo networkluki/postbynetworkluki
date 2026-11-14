@@ -26,8 +26,8 @@ python manage.py new --title "Publishing from the shell" --category "Articles" \
     --published 2026-10-09 --time 14:30 --content-file post.txt
 ```
 
-`--category` must be one of **Articles**, **Changelog** or **Ideas** — it decides
-which section the post appears in (`/blog`, `/changelog`, `/ideas`).
+`--category` must be **Articles** or **Changelog** — it decides which section
+the post appears in (`/blog`, `/changelog`).
 
 Run `python manage.py new` with no flags in a terminal and it asks for each
 field; the body ends with a line containing only `.` or with Ctrl-D. The body can
@@ -72,7 +72,7 @@ Second paragraph.
 | Field | Required | Limit | Notes |
 |---|---|---|---|
 | `title` | yes | 120 chars | |
-| `category` | yes | 50 chars | one of `Articles`, `Changelog`, `Ideas`; sets the section |
+| `category` | yes | 50 chars | `Articles` or `Changelog`; sets the section |
 | `excerpt` | yes | 300 chars | listing text and meta description |
 | `published` | yes | — | `YYYY-MM-DD`; posts are sorted newest first |
 | `published_time` | no | — | `HH:MM` (24-hour); shown next to the date |
@@ -183,8 +183,8 @@ refuses to delete a directory it did not create unless `--force` is passed.
   both were removed. Publishing is `manage.py` plus a commit.
 * **No drafts.** Everything in `src/posts` is published on the next push. Keep
   unfinished posts on a branch.
-* **Old URLs** keep working through generated redirect pages: `/ideer` and
-  `/blogg` point at `/ideas` and `/blog`, and every `legacy_slugs` entry
+* **Old URLs** keep working through generated redirect pages: `/ideer`,
+  `/ideas` and `/blogg` point at `/blog`, and every `legacy_slugs` entry
   redirects to its post.
 * **Pages serves over HTTPS** with the custom domain; enforce HTTPS in the
   repository's Pages settings.

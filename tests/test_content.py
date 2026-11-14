@@ -16,11 +16,14 @@ from helpers import ContentDirectoryTestCase, write_post_file
 
 
 class CategoryTests(unittest.TestCase):
-    def test_category_must_be_one_of_the_three_sections(self):
-        text = VALID.replace("category: Articles", "category: Random")
-        with self.assertRaises(PostError) as caught:
-            parse_post(text, "x", "x.md")
-        self.assertIn("category must be one of", caught.exception.message)
+    def test_category_must_be_one_of_the_sections(self):
+        # "Ideas" was a section once; it is retired and must be rejected too.
+        for category in ("Random", "Ideas"):
+            with self.subTest(category=category):
+                text = VALID.replace("category: Articles", f"category: {category}")
+                with self.assertRaises(PostError) as caught:
+                    parse_post(text, "x", "x.md")
+                self.assertIn("category must be one of", caught.exception.message)
 
     def test_category_is_normalised_to_its_display_form(self):
         text = VALID.replace("category: Articles", "category: changelog")

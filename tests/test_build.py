@@ -34,7 +34,6 @@ class BuildTests(ContentDirectoryTestCase):
             ".nojekyll",
             "index.html",
             "404.html",
-            "ideas/index.html",
             "blog/index.html",
             "changelog/index.html",
             "blog/newest-post/index.html",
@@ -68,7 +67,8 @@ class BuildTests(ContentDirectoryTestCase):
     def test_retired_paths_become_redirect_pages(self):
         build.build(self.output)
         cases = {
-            "ideer/index.html": "/ideas",
+            "ideer/index.html": "/blog",
+            "ideas/index.html": "/blog",
             "blogg/index.html": "/blog",
             "blog/aldsta-slugen/index.html": "/blog/newest-post",
             "blogg/aldsta-slugen/index.html": "/blog/newest-post",

@@ -45,7 +45,7 @@ SECURITY_HEADERS = [
 ]
 STATIC_TYPES = {"css": "text/css; charset=utf-8", "js": "text/javascript; charset=utf-8"}
 # Retired paths kept as aliases so older links do not break.
-SECTION_ALIASES = {"/ideer": "/ideas", "/blogg": "/blog"}
+SECTION_ALIASES = {"/ideer": "/blog", "/ideas": "/blog", "/blogg": "/blog"}
 
 
 def stylesheet_path() -> Path:
@@ -72,7 +72,7 @@ def page(
     title: str,
     content: str,
     *,
-    description: str = "Ideas, articles, and updates from networkluki.",
+    description: str = "Articles and updates from networkluki.",
 ) -> bytes:
     template = (BASE_DIR / "templates" / "base.html").read_text(encoding="utf-8")
     html = (
@@ -116,12 +116,11 @@ def home() -> bytes:
 <section class="hero">
   <p class="kicker">POST BY NETWORKLUKI</p>
   <h1>Thoughts worth<br><em>taking further.</em></h1>
-  <p class="intro">Articles, changelog entries, and ideas from networkluki.</p>
+  <p class="intro">Articles and changelog entries from networkluki.</p>
 </section>
 <div class="cards" aria-label="Explore the content">
   <a href="/blog" class="nav-card articles"><div class="icon" aria-hidden="true">&#128221;</div><div class="body"><h3>Articles</h3><p>Posts and write-ups</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
   <a href="/changelog" class="nav-card changelog"><div class="icon" aria-hidden="true">&#128203;</div><div class="body"><h3>Changelog</h3><p>Changes and updates</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
-  <a href="/ideas" class="nav-card ideas"><div class="icon" aria-hidden="true">&#128161;</div><div class="body"><h3>Ideas</h3><p>Thoughts and sparks</p></div><div class="arrow" aria-hidden="true">&rarr;</div></a>
 </div>
 <section class="featured">
   <div><p class="eyebrow">Latest · {escape(published_display(latest))}</p><h2>{escape(latest.title)}</h2><p>{escape(latest.excerpt)}</p></div>
@@ -137,15 +136,6 @@ def listing() -> bytes:
         "ARTICLES",
         "Posts & articles",
         "Thoughts, methods, and things we learn along the way.",
-    )
-
-
-def ideas() -> bytes:
-    return section_listing(
-        "Ideas",
-        "IDEAS",
-        "Ideas & tips",
-        "Short prompts and sparks worth exploring.",
     )
 
 
@@ -332,7 +322,7 @@ def feed() -> bytes:
         "<channel>"
         "<title>Post by networkluki</title>"
         f"<link>{SITE_URL}/</link>"
-        "<description>Articles, changelog entries, and ideas from networkluki.</description>"
+        "<description>Articles and changelog entries from networkluki.</description>"
         "<language>en</language>"
         f'<atom:link href="{SITE_URL}/feed.xml" rel="self" type="application/rss+xml"/>'
         f"<lastBuildDate>{last_build}</lastBuildDate>"
@@ -394,7 +384,6 @@ def application(environ: dict, start_response) -> Iterable[bytes]:
     path = SECTION_ALIASES.get(path, path)
     routes = {
         "/": home,
-        "/ideas": ideas,
         "/blog": listing,
         "/changelog": changelog,
         "/stuffs": stuffs,

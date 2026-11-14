@@ -1,6 +1,6 @@
 ---
 title: Four ways to use ChatGPT as a thinking tool
-category: Ideas
+category: Articles
 excerpt: A tip: use ChatGPT for decomposition, explanation, validation, and reflection — four modes that strengthen your thinking instead of replacing it.
 published: 2026-10-25
 read_time: 2 min

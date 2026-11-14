@@ -5,8 +5,7 @@ The output is what GitHub Pages publishes:
 
     public/
       index.html                      home page
-      ideas/index.html                sections
-      blog/index.html
+      blog/index.html                 sections
       changelog/index.html
       blog/<slug>/index.html          one directory per post
       blog/<legacy-slug>/index.html   redirect to the current slug
@@ -32,7 +31,6 @@ from app import (
     changelog,
     feed,
     home,
-    ideas,
     listing,
     not_found,
     quotes,
@@ -46,14 +44,13 @@ OUTPUT = ROOT / "public"
 # Also the marker that identifies a directory as build output we may delete.
 MARKER = ".nojekyll"
 SECTIONS = {
-    "ideas": ideas,
     "blog": listing,
     "changelog": changelog,
     "stuffs": stuffs,
     "quotes": quotes,
 }
 # Retired section paths, kept as redirects.
-SECTION_REDIRECTS = {"ideer": "/ideas", "blogg": "/blog"}
+SECTION_REDIRECTS = {"ideer": "/blog", "ideas": "/blog", "blogg": "/blog"}
 
 
 class BuildError(Exception):

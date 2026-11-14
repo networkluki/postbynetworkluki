@@ -43,7 +43,7 @@ class BlogTests(ContentDirectoryTestCase):
         )
 
     def test_main_pages_are_available(self):
-        for path in ("/", "/ideas", "/blog", "/changelog"):
+        for path in ("/", "/blog", "/changelog"):
             with self.subTest(path=path):
                 response = request(path)
                 self.assertEqual(response["status"], "200 OK")
@@ -56,8 +56,9 @@ class BlogTests(ContentDirectoryTestCase):
         self.assertIn('<html lang="en">', body)
         self.assertIn("The newest post", body)
         self.assertNotIn("The older post", body)
-        for path in ("/ideas", "/blog", "/changelog"):
+        for path in ("/blog", "/changelog"):
             self.assertIn(f'href="{path}"', body)
+        self.assertNotIn('href="/ideas"', body)
 
     def test_listing_shows_every_post(self):
         body = request("/blog")["body"].decode()
@@ -111,7 +112,7 @@ class BlogTests(ContentDirectoryTestCase):
                 self.assertIn(b"First paragraph.", response["body"])
 
     def test_retired_paths_still_work(self):
-        for path in ("/ideer", "/blogg"):
+        for path in ("/ideer", "/ideas", "/blogg"):
             with self.subTest(path=path):
                 self.assertEqual(request(path)["status"], "200 OK")
         for path in ("/blog/aldsta-slugen", "/blogg/aldsta-slugen", "/blogg/newest-post"):

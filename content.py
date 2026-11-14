@@ -15,7 +15,7 @@ front matter block and a body of plain-text paragraphs:
     legacy_slugs: bygg-mindre-lanserar-snabbare
     ---
 
-The category is one of Articles, Changelog or Ideas and decides the section a
+The category is either Articles or Changelog and decides the section a
 post appears in. published_time is optional (24-hour HH:MM).
 
     First paragraph.
@@ -56,9 +56,9 @@ FIELD_LIMITS = {
 # Fields a writer supplies; published, the time and the slug are handled separately.
 TEXT_FIELDS = ("title", "category", "excerpt", "content", "read_time")
 
-# A post belongs to exactly one of three sections. The key is the lowercase form
+# A post belongs to exactly one of two sections. The key is the lowercase form
 # accepted in a file; the value is how the category is displayed and stored.
-CATEGORIES = {"articles": "Articles", "changelog": "Changelog", "ideas": "Ideas"}
+CATEGORIES = {"articles": "Articles", "changelog": "Changelog"}
 # Optional publish time of day, 24-hour HH:MM.
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # Optional hero image: a file name produced by tools/make_hero.py and served

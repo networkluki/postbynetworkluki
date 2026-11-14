@@ -1,6 +1,6 @@
 ---
 title: The model stack is not the merit
-category: Ideas
+category: Articles
 excerpt: A tool stack proves nothing on its own. What counts is what can be built, verified, deployed, and sustained with it.
 published: 2026-10-14
 read_time: 1 min
