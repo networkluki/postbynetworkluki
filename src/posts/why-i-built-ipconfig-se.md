@@ -3,6 +3,7 @@ title: Why I built ipconfig.se
 category: Articles
 excerpt: Quick access to IP and network information while I develop.
 published: 2026-11-14
+published_time: 13:02
 read_time: 2 min
 image: why-i-built-ipconfig-se.webp
 ---

@@ -33,7 +33,7 @@ Run `python manage.py new` with no flags in a terminal and it asks for each
 field; the body ends with a line containing only `.` or with Ctrl-D. The body can
 also come from `--content` or from a pipe with `--content-file -`. `--slug`
 overrides the slug derived from the title, `--published YYYY-MM-DD` backdates a
-post, and `--time HH:MM` adds a publish time of day (24-hour).
+post, and `--time HH:MM` sets the publish time of day (24-hour, default: now).
 
 Other commands:
 
@@ -75,7 +75,7 @@ Second paragraph.
 | `category` | yes | 50 chars | `Articles` or `Changelog`; sets the section |
 | `excerpt` | yes | 300 chars | listing text and meta description |
 | `published` | yes | — | `YYYY-MM-DD`; posts are sorted newest first |
-| `published_time` | no | — | `HH:MM` (24-hour); shown next to the date |
+| `published_time` | yes | — | `HH:MM` (24-hour); shown next to the date |
 | `read_time` | yes | 20 chars | rendered as "4 min read" |
 | `legacy_slugs` | no | — | comma separated; each becomes a redirect page |
 | `image` | no | — | hero image file name, e.g. `my-post.webp`; see below |

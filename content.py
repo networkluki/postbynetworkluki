@@ -16,7 +16,7 @@ front matter block and a body of plain-text paragraphs:
     ---
 
 The category is either Articles or Changelog and decides the section a
-post appears in. published_time is optional (24-hour HH:MM).
+post appears in. published_time is required (24-hour HH:MM).
 
     First paragraph.
 
@@ -34,7 +34,7 @@ import re
 import tempfile
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Mapping
 
@@ -43,8 +43,15 @@ POSTS_DIR = BASE_DIR / "src" / "posts"
 POST_SUFFIX = ".md"
 FENCE = "---"
 
-REQUIRED_FIELDS = ("title", "category", "excerpt", "published", "read_time")
-OPTIONAL_FIELDS = ("legacy_slugs", "published_time", "image")
+REQUIRED_FIELDS = (
+    "title",
+    "category",
+    "excerpt",
+    "published",
+    "published_time",
+    "read_time",
+)
+OPTIONAL_FIELDS = ("legacy_slugs", "image")
 ALLOWED_FIELDS = frozenset(REQUIRED_FIELDS + OPTIONAL_FIELDS)
 FIELD_LIMITS = {
     "title": 120,
@@ -59,7 +66,7 @@ TEXT_FIELDS = ("title", "category", "excerpt", "content", "read_time")
 # A post belongs to exactly one of two sections. The key is the lowercase form
 # accepted in a file; the value is how the category is displayed and stored.
 CATEGORIES = {"articles": "Articles", "changelog": "Changelog"}
-# Optional publish time of day, 24-hour HH:MM.
+# Publish time of day, 24-hour HH:MM. Required, so every post shows date and time.
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # Optional hero image: a file name produced by tools/make_hero.py and served
 # from static/img/heroes/. Restricted to a safe, slug-style basename with an
@@ -174,8 +181,8 @@ def parse_post(text: str, slug: str, source: str) -> Post:
             f"{source}: published must be a date in YYYY-MM-DD form, "
             f"not {fields['published']!r}"
         ) from None
-    published_time = fields.get("published_time", "").strip()
-    if published_time and not TIME_PATTERN.match(published_time):
+    published_time = fields["published_time"].strip()
+    if not TIME_PATTERN.match(published_time):
         raise PostError(
             f"{source}: published_time must be a 24-hour HH:MM time, "
             f"not {published_time!r}"
@@ -319,8 +326,10 @@ def write_post(
     """
     directory = directory or posts_directory()
     cleaned = validate_fields(values)
-    published_time = (published_time or "").strip()
-    if published_time and not TIME_PATTERN.match(published_time):
+    # Every post carries a time of day; default to now (local time) when the
+    # writer gives none.
+    published_time = (published_time or "").strip() or datetime.now().strftime("%H:%M")
+    if not TIME_PATTERN.match(published_time):
         raise PostError("published_time must be a 24-hour HH:MM time")
     image = (image or "").strip()
     if image and not IMAGE_PATTERN.match(image):

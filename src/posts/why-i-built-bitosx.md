@@ -3,6 +3,7 @@ title: Why I built BitosX
 category: Articles
 excerpt: A test build that grew out of my interest in security and control.
 published: 2026-11-14
+published_time: 12:04
 read_time: 2 min
 image: why-i-built-bitosx.webp
 ---

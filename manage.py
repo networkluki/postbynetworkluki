@@ -219,7 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
     new.add_argument(
         "--time",
         type=clock_time,
-        help="optional publication time as HH:MM (24-hour)",
+        help="publication time as HH:MM, 24-hour (default: now)",
     )
     new.set_defaults(handler=command_new)
 

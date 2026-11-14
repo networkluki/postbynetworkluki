@@ -14,6 +14,7 @@ HEADER = (
     "category: Articles\n"
     "excerpt: Short description.\n"
     "published: 2026-06-01\n"
+    "published_time: 10:00\n"
     "read_time: 3 min\n"
 )
 

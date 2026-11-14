@@ -31,21 +31,19 @@ class CategoryTests(unittest.TestCase):
 
 
 class PublishedTimeTests(unittest.TestCase):
-    def test_time_is_optional_and_defaults_to_empty(self):
-        self.assertEqual(parse_post(VALID, "x", "x.md").published_time, "")
+    def test_time_is_required(self):
+        text = VALID.replace("published_time: 14:30\n", "")
+        with self.assertRaises(PostError) as caught:
+            parse_post(text, "x", "x.md")
+        self.assertIn("missing field(s): published_time", caught.exception.message)
 
     def test_a_valid_time_is_parsed_and_displayed(self):
-        text = VALID.replace(
-            "published: 2026-09-24", "published: 2026-09-24\npublished_time: 14:30"
-        )
-        post = parse_post(text, "x", "x.md")
+        post = parse_post(VALID, "x", "x.md")
         self.assertEqual(post.published_time, "14:30")
         self.assertEqual(published_display(post), "2026-09-24 · 14:30")
 
     def test_a_bad_time_is_rejected(self):
-        text = VALID.replace(
-            "published: 2026-09-24", "published: 2026-09-24\npublished_time: 25:99"
-        )
+        text = VALID.replace("published_time: 14:30", "published_time: 25:99")
         with self.assertRaises(PostError) as caught:
             parse_post(text, "x", "x.md")
         self.assertIn("HH:MM", caught.exception.message)
@@ -55,6 +53,7 @@ title: Build less
 category: Articles
 excerpt: A short summary.
 published: 2026-09-24
+published_time: 14:30
 read_time: 4 min
 legacy_slugs: bygg-mindre, gammal-slug
 ---
@@ -172,6 +171,8 @@ class DirectoryTests(ContentDirectoryTestCase):
         self.assertEqual(reloaded.title, "Written by the API")
         self.assertEqual(reloaded.content, ("One.", "Two."))
         self.assertEqual(reloaded.published, date(2026, 3, 2))
+        # No time was given, so the current time of day is stored.
+        self.assertRegex(reloaded.published_time, r"^([01]\d|2[0-3]):[0-5]\d$")
 
     def test_write_post_refuses_an_existing_slug_or_alias(self):
         write_post_file(self.posts_directory, "taken", legacy_slugs="also-taken")

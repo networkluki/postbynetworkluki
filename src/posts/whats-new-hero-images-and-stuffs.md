@@ -3,6 +3,7 @@ title: What's new: hero images and Stuffs
 category: Changelog
 excerpt: Articles can now carry a hero image, and a new Stuffs section collects the things I have built.
 published: 2026-11-14
+published_time: 12:21
 read_time: 2 min
 ---
 

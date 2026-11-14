@@ -3,6 +3,7 @@ title: From text to blog
 category: Articles
 excerpt: How I build my blog with text files, Python and automatic publishing.
 published: 2026-11-13
+published_time: 11:36
 read_time: 2 min
 image: from-text-to-blog.webp
 ---

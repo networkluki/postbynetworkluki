@@ -10,6 +10,7 @@ POST = {
     "category": "Articles",
     "excerpt": "Used by the tests.",
     "published": "2026-05-04",
+    "published_time": "09:15",
     "read_time": "2 min",
 }
 
