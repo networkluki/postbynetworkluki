@@ -15,3 +15,4 @@ https://theinfo.nu/info/swep-news/ | The Info — Police Incidents | Live police
 https://theinfo.nu/info/weather/ | The Info — Stockholm Weather | Current conditions and a five-day forecast for Stockholm, from SMHI open data.
 https://theinfo.nu/info/multi/ | The Info — Nordic News | Follow the latest news from Sweden and Norway — pick a country and read articles pulled straight from its largest media sources.
 https://theinfo.nu/tools/seoindex/ | The Info — SEO Health Check | Analyze indexability and technical SEO health for a domain or URL.
+https://readthepolicy.theinfo.nu/ | Read The Policy | Search for any domain and get its privacy policy and terms of service summarized — understand the fine print before you accept.
